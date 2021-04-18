@@ -6,13 +6,19 @@
 
 namespace franka_o80
 {
+///Output of `Driver` or observation
 class DriverOutput
 {
 public:
-	franka::JointPositions joint_positions;
-	double gripper_width;
-
-	DriverOutput();
+    ///Joint positions of robot
+    franka::JointPositions joint_positions;
+    ///Width of gripper
+    double gripper_width;
+    
+    ///Creates driver output
+    DriverOutput();
+    ///Prints driver input to `std::cout`
+    //@param `true` to end output with `std::endl`
     void print(bool endl);
 };
 }  // namespace franka_o80
