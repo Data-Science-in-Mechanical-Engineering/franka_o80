@@ -12,8 +12,8 @@ class Standalone : public o80::Standalone<queue_size, actuator_number, Driver, S
 {
 public:
     Standalone(std::shared_ptr<Driver> driver_ptr, double frequency, std::string segment_id);
-    DriverIn convert(const o80::States<actuator_number, State> &joints);
-    o80::States<actuator_number, State> convert(const DriverOut &driver_out);
+    DriverInput convert(const o80::States<actuator_number, State> &joints);
+    o80::States<actuator_number, State> convert(const DriverOutput &driver_out);
 };
 
 std::string get_segment_id(int id);

@@ -22,8 +22,8 @@ include_directories(${pybind11_INCLUDE_DIR2})
 
 add_library(franka_o80_base SHARED
 src/driver.cpp
-src/driver_in.cpp
-src/driver_out.cpp
+src/driver_input.cpp
+src/driver_output.cpp
 src/standalone.cpp)
 
 # franka_o80 #

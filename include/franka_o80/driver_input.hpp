@@ -6,13 +6,13 @@
 
 namespace franka_o80
 {
-class DriverIn
+class DriverInput
 {
 public:
-	franka::JointPositions joint_positions{};
+	franka::JointPositions joint_positions;
 	double gripper_width;
 
-	DriverIn();
+	DriverInput();
     void print(bool endl);
     std::string to_string() const;
 };

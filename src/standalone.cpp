@@ -5,26 +5,26 @@ franka_o80::Standalone::Standalone(std::shared_ptr<Driver> driver_ptr, double fr
 {
 }
 
-franka_o80::DriverIn franka_o80::Standalone::convert(const o80::States<actuator_number, State> &states)
+franka_o80::DriverInput franka_o80::Standalone::convert(const o80::States<actuator_number, State> &states)
 {
-    DriverIn result;
+    DriverInput input;
     for (size_t i = 0; i < 7; i++)
     {
-        result.joint_positions.q[i] = states.get(i).value;
+        input.joint_positions.q[i] = states.get(i).value;
     }
-	result.gripper_width = states.get(7).value;
-    return result;
+	input.gripper_width = states.get(7).value;
+    return input;
 }
 
-o80::States<franka_o80::actuator_number, franka_o80::State> franka_o80::Standalone::convert(const DriverOut &observation)
+o80::States<franka_o80::actuator_number, franka_o80::State> franka_o80::Standalone::convert(const DriverOutput &observation)
 {
-    o80::States<actuator_number, State> result;
+    o80::States<actuator_number, State> states;
 	for (size_t i = 0; i < 7; i++)
     {
-        result.set(i, observation.joint_positions.q[i]);
+        states.set(i, observation.joint_positions.q[i]);
     }
-	result.set(7, observation.gripper_width);
-	return result;
+	states.set(7, observation.gripper_width);
+	return states;
 }
 
 // optional user function for adding content to extended_state based

@@ -6,13 +6,13 @@
 
 namespace franka_o80
 {
-class DriverOut
+class DriverOutput
 {
 public:
-	franka::JointPositions joint_positions{};
+	franka::JointPositions joint_positions;
 	double gripper_width;
 
-	DriverOut();
+	DriverOutput();
     void print(bool endl);
 };
 }  // namespace franka_o80
