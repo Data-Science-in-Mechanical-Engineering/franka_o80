@@ -1,5 +1,5 @@
 #include <o80/pybind11_helper.hpp>
-#include "../../include/franka_o80/standalone.hpp"
+#include "../include/franka_o80/standalone.hpp"
 
 PYBIND11_MODULE(franka_o80, m)
 {
