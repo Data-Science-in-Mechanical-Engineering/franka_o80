@@ -35,5 +35,14 @@ int run(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	return run(argc, argv);
+	try
+	{
+		return run(argc, argv);
+	}
+	catch (std::exception &e)
+	{
+		std::cout << "Exception occured: " << e.what() << std::endl;
+		std::cout << "Terminating..." << std::endl;
+	}
+	return 1;
 }

@@ -117,15 +117,23 @@ int franka_o80::run(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	// ./franka_o80_backend daemon N start F IP
-	if (argc == 6 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "start") return franka_o80::start(argc, argv);
-	// ./franka_o80_backend daemon N stop
-	else if (argc == 4 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "stop") return franka_o80::stop(argc, argv);
-	// ./franka_o80_backend daemon N status
-	else if (argc == 4 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "status")	return franka_o80::status(argc, argv);
-	// ./franka_o80_backend N F IP
-	else if (argc == 4) return franka_o80::run(argc, argv);
-	
-	franka_o80::help();
+	try
+	{
+		// ./franka_o80_backend daemon N start F IP
+		if (argc == 6 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "start") return franka_o80::start(argc, argv);
+		// ./franka_o80_backend daemon N stop
+		else if (argc == 4 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "stop") return franka_o80::stop(argc, argv);
+		// ./franka_o80_backend daemon N status
+		else if (argc == 4 && std::string(argv[1]) == "daemon" && std::string(argv[3]) == "status")	return franka_o80::status(argc, argv);
+		// ./franka_o80_backend N F IP
+		else if (argc == 4) return franka_o80::run(argc, argv);
+		// ./franka_o80_backend ...
+		else franka_o80::help();
+	}
+	catch (std::exception &e)
+	{
+		std::cout << "Exception occured: " << e.what() << std::endl;
+		std::cout << "Terminating..." << std::endl;
+	}
 	return 1;
 }
