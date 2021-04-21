@@ -1,5 +1,6 @@
 #include "../include/franka_o80/driver.hpp"
 #include "../include/franka_o80/standalone.hpp"
+#include "../include/franka_o80/segment_id.hpp"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>

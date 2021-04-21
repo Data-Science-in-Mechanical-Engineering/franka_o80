@@ -35,8 +35,3 @@ void Standalone::enrich_extended_state(o80::VoidExtendedState &extended_state,
 {
 }
 */
-
-std::string franka_o80::get_segment_id(int id)
-{
-    return std::string(segment_id_base) + std::string("_") + std::to_string(id);
-}

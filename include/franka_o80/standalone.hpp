@@ -1,10 +1,10 @@
 #pragma once
 
-#include <o80/memory_clearing.hpp>
-#include <o80/standalone.hpp>
 #include "driver.hpp"
 #include "state.hpp"
 #include "constants.hpp"
+#include <o80/memory_clearing.hpp>
+#include <o80/standalone.hpp>
 
 namespace franka_o80
 {
@@ -24,8 +24,4 @@ public:
     ///@param driver_output Driver output
     o80::States<actuator_number, State> convert(const DriverOutput &driver_output);
 };
-
-///Returns default segment id for given integer id
-///@param id Integer identifier
-std::string get_segment_id(int id);
 } // namespace franka_o80
