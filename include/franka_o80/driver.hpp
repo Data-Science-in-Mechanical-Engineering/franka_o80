@@ -5,9 +5,13 @@
 #include "errors.hpp"
 #include "driver_input.hpp"
 #include "driver_output.hpp"
-#include <franka/robot.h>
-#include <franka/gripper.h>
-#include <franka/exception.h>
+#ifndef FRANKA_O80_TEST
+    #include <franka/robot.h>
+    #include <franka/gripper.h>
+    #include <franka/exception.h>
+#else
+    #include "franka_test.hpp"
+#endif
 #include <o80/driver.hpp>
 #include <string>
 #include <memory>

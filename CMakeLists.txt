@@ -30,6 +30,10 @@ include_directories(${pybind11_INCLUDE_DIR2})
 
 add_compile_definitions(RT_PREEMPT)
 
+##############
+# REAL ROBOT #
+##############
+
 # franka_o80_base #
 ###################
 
@@ -62,3 +66,42 @@ target_link_libraries(franka_o80_backend PRIVATE franka_o80_base)
 
 add_executable(franka_o80_set_angle_0 example/set_angle_0.cpp)
 target_link_libraries(franka_o80_set_angle_0 PRIVATE franka_o80_base)
+
+###########
+# TESTING #
+###########
+
+# franka_o80_base_test #
+########################
+
+add_library(franka_o80_base_test SHARED
+src/driver.cpp
+src/driver_input_output.cpp
+src/driver_input.cpp
+src/driver_output.cpp
+src/segment_id.cpp
+src/standalone.cpp
+src/state.cpp
+src/franka_test.cpp)
+target_compile_definitions(franka_o80_base_test PRIVATE FRANKA_O80_TEST)
+
+# franka_o80 #
+##############
+
+if (DEFINED pybind11_INCLUDE_DIR1)
+	add_library(franka_o80_test SHARED srcpy/wrappers.cpp)
+	target_link_libraries(franka_o80_test PRIVATE franka_o80_base_test)
+	set_target_properties(franka_o80_test PROPERTIES PREFIX "")
+endif()
+
+# franka_o80_backend #
+######################
+
+add_executable(franka_o80_backend_test example/backend.cpp)
+target_link_libraries(franka_o80_backend_test PRIVATE franka_o80_base_test)
+
+# franka_o80_set_angle_0 #
+##########################
+
+add_executable(franka_o80_set_angle_0_test example/set_angle_0.cpp)
+target_link_libraries(franka_o80_set_angle_0_test PRIVATE franka_o80_base_test)
