@@ -2,5 +2,5 @@
 
 std::string franka_o80::get_segment_id(int id)
 {
-    return std::string(segment_id_base) + std::string("_") + std::to_string(id);
+    return segment_id_base + std::to_string(id);
 }

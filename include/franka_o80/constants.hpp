@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace franka_o80
 {
 
@@ -23,5 +25,5 @@ static const int actuator_number = 28;
 ///Command queue size
 static const int queue_size = 40000;
 ///Prefix for all segment id's
-static char const * const segment_id_base = "franka_o80";
+static const std::string segment_id_base("franka_o80_");
 }  // namespace franka_o80
