@@ -1,9 +1,13 @@
 #pragma once
 
+#include "constants.hpp"
+#include "indexes.hpp"
+#include "errors.hpp"
 #include "driver_input.hpp"
 #include "driver_output.hpp"
 #include <franka/robot.h>
 #include <franka/gripper.h>
+#include <franka/exception.h>
 #include <o80/driver.hpp>
 #include <string>
 #include <memory>
@@ -16,15 +20,31 @@ namespace franka_o80
 class Driver : public o80::Driver<DriverInput, DriverOutput>
 {
 private:
+	enum class Mode
+	{
+		invalid,
+		positions,
+		velocities,
+		torques,
+		positions_torques,
+		velocities_torques
+	};
+	
     std::string ip_;
     std::unique_ptr<franka::Robot> robot_;
     std::thread robot_control_thread_;
     std::unique_ptr<franka::Gripper> gripper_;
     std::thread gripper_control_thread_;
-    DriverInput input_;
+	Mode mode_ = Mode::invalid;
+	DriverInput input_;
     DriverOutput output_;
-    std::mutex input_output_mutex_;
-    
+    bool finished_ = false;
+	std::mutex input_output_mutex_;
+
+	static Mode get_mode(double positions, double velocities, double torques);
+	static double get_control_position(Mode mode);
+	static double get_control_velocity(Mode mode);
+	static double get_control_torque(Mode mode);
     static void robot_control_function_(Driver *driver);
     static void gripper_control_function_(Driver *driver);
 

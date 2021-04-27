@@ -35,10 +35,12 @@ add_compile_definitions(RT_PREEMPT)
 
 add_library(franka_o80_base SHARED
 src/driver.cpp
+src/driver_input_output.cpp
 src/driver_input.cpp
 src/driver_output.cpp
 src/segment_id.cpp
-src/standalone.cpp)
+src/standalone.cpp
+src/state.cpp)
 
 # franka_o80 #
 ##############

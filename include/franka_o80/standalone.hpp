@@ -4,6 +4,7 @@
 #include "state.hpp"
 #include "constants.hpp"
 #include <o80/memory_clearing.hpp>
+#include <o80/state.hpp>
 #include <o80/standalone.hpp>
 
 namespace franka_o80

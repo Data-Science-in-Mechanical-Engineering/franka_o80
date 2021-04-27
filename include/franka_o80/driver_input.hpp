@@ -1,22 +1,19 @@
 #pragma once
 
-#include <franka/control_types.h>
+#include "driver_input_output.hpp"
 #include <iostream>
 #include <string>
 
 namespace franka_o80
 {
 ///Input for `Driver`
-class DriverInput
+class DriverInput : public DriverInputOutput
 {
 public:
-    ///Joint positions of robot
-    franka::JointPositions joint_positions;
-    ///Width of gripper
-    double gripper_width;
-    
-    ///Creates driver input
+    //Creates driver input
     DriverInput();
+    //Creates driver input from state
+    DriverInput(const o80::States<actuator_number, State> &states);
     ///Prints driver input to `std::cout`
     //@param `true` to end output with `std::endl`
     void print(bool endl);
