@@ -38,7 +38,18 @@ void franka::Robot::delete_timer_()
     control_ = false;
 }
 
-franka::Robot::Robot(std::string ip)
+franka::RobotState franka::Robot::state_() const
+{
+    franka::RobotState state;
+    for (size_t i = 0; i < 7; i++)
+    {
+        state.q[i] = positions_[i];
+        state.dq[i] = (positions_[i] - previous_positions_[i]) * 1000.0;
+    }
+    return state;
+}
+
+franka::Robot::Robot(std::string ip) : time_distribution_(500, 2000)
 {
     for (size_t i = 0; i < 7; i++)
     {
@@ -48,13 +59,11 @@ franka::Robot::Robot(std::string ip)
 }
 
 franka::RobotState franka::Robot::readOnce()
-{ 
-	franka::RobotState state;
-    for (size_t i = 0; i < 7; i++)
-    {
-        state.q[i] = positions_[i];
-        state.dq[i] = (positions_[i] - previous_positions_[i]) * 1000.0;
-    }
+{
+    if (control_.exchange(true) == true) franka::InvalidOperationException("franka_test: control already running");
+    std::this_thread::sleep_for(std::chrono::microseconds(time_distribution_(random_engine_)));
+    RobotState state = state_();
+    control_ = false;
     return state;
 }
 
@@ -63,14 +72,31 @@ void franka::Robot::control(std::function<JointPositions(const RobotState &state
     create_timer_();
     while (true)
     {
+        //Waiting for signal
         if (pause() < 0) { delete_timer_(); throw franka::RealtimeException("franka_test: pause failed"); }
-        JointPositions positions = positions_control(readOnce(), 1);
-        if (positions.motion_finished) break;
+
+        //Calling callback
+        RobotState state = state_();
+        JointPositions positions = positions_control(state, 1);
+
+        //Checcking input
+        for (size_t i = 0; i < 7; i++)
+        {
+            if (positions.q[i] != positions.q[i] || positions.q[i] < franka_o80::robot_positions_min[i] || positions.q[i] > franka_o80::robot_positions_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
+            if (abs(positions_[i] - positions.q[i]) > 0.001 * franka_o80::robot_velocities_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
+        }
+
+        //Updating state
         for (size_t i = 0; i < 7; i++)
         {
             previous_positions_[i] = positions_[i];
             positions_[i] = positions.q[i];
         }
+
+        //Exiting
+        if (positions.motion_finished) break;
     }
     delete_timer_();
 }
@@ -80,14 +106,31 @@ void franka::Robot::control(std::function<JointVelocities(const RobotState &stat
     create_timer_();
     while (true)
     {
+        //Waiting for signal
         if (pause() < 0) { delete_timer_(); throw franka::RealtimeException("franka_test: pause failed"); }
-        JointVelocities velocities = velocities_control(readOnce(), 1);
-        if (velocities.motion_finished) break;
+
+        //Calling callback
+        RobotState state = state_();
+        JointVelocities velocities = velocities_control(state, 1);
+
+        //Checcking input
+        for (size_t i = 0; i < 7; i++)
+        {
+            if (velocities.dq[i] != velocities.dq[i] || abs(velocities.dq[i]) > franka_o80::robot_velocities_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
+            if (positions_[i] + 0.001 * velocities.dq[i] > franka_o80::robot_positions_max[i] || positions_[i] + 0.001 * velocities.dq[i] < franka_o80::robot_positions_min[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
+        }
+
+        //Updating state
         for (size_t i = 0; i < 7; i++)
         {
             previous_positions_[i] = positions_[i];
-            positions_[i] += 0.001 * velocities.dq[i];
+            positions_[i] += velocities.dq[i] * 0.001;
         }
+
+        //Exiting
+        if (velocities.motion_finished) break;
     }
     delete_timer_();
 }
@@ -97,13 +140,28 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
     create_timer_();
     while (true)
     {
+        //Waiting for signal
         if (pause() < 0) { delete_timer_(); throw franka::RealtimeException("franka_test: pause failed"); }
-        Torques torques = torques_control(readOnce(), 1);
-        if (torques.motion_finished) break;
+
+        //Calling callback
+        RobotState state = state_();
+        Torques torques = torques_control(state, 1);
+
+        //Checcking input
+        for (size_t i = 0; i < 7; i++)
+        {
+            if (torques.tau_J[i] != torques.tau_J[i] || abs(torques.tau_J[i]) > franka_o80::robot_torques_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint torque"); }
+        }
+
+        //Updating state
         for (size_t i = 0; i < 7; i++)
         {
             previous_positions_[i] = positions_[i];
         }
+
+        //Exiting
+        if (torques.motion_finished) break;
     }
     delete_timer_();
 }
@@ -113,16 +171,34 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
     create_timer_();
     while (true)
     {
+        //Waiting for signal
         if (pause() < 0) { delete_timer_(); throw franka::RealtimeException("franka_test: pause failed"); }
-        RobotState state = readOnce();
-        torques_control(state, 1);
+
+        //Calling callback
+        RobotState state = state_();
+        Torques torques = torques_control(state, 1);
         JointPositions positions = positions_control(state, 1);
-        if (positions.motion_finished) break;
+
+        //Checcking input
+        for (size_t i = 0; i < 7; i++)
+        {
+            if (positions.q[i] != positions.q[i] || positions.q[i] < franka_o80::robot_positions_min[i] || positions.q[i] > franka_o80::robot_positions_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
+            if (abs(positions_[i] - positions.q[i]) > 0.001 * franka_o80::robot_velocities_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
+            if (torques.tau_J[i] != torques.tau_J[i] || abs(torques.tau_J[i]) > franka_o80::robot_torques_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint torque"); }
+        }
+
+        //Updating state
         for (size_t i = 0; i < 7; i++)
         {
             previous_positions_[i] = positions_[i];
             positions_[i] = positions.q[i];
         }
+
+        //Exiting
+        if (torques.motion_finished || positions.motion_finished) break;
     }
     delete_timer_();
 }
@@ -132,18 +208,40 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
     create_timer_();
     while (true)
     {
+        //Waiting for signal
         if (pause() < 0) { delete_timer_(); throw franka::RealtimeException("franka_test: pause failed"); }
-        RobotState state = readOnce();
-        torques_control(state, 1);
+
+        //Calling callback
+        RobotState state = state_();
+        Torques torques = torques_control(state, 1);
         JointVelocities velocities = velocities_control(state, 1);
-        if (velocities.motion_finished) break;
+
+        //Checcking input
+        for (size_t i = 0; i < 7; i++)
+        {
+            if (velocities.dq[i] != velocities.dq[i] || abs(velocities.dq[i]) > franka_o80::robot_velocities_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
+            if (positions_[i] + 0.001 * velocities.dq[i] > franka_o80::robot_positions_max[i] || positions_[i] + 0.001 * velocities.dq[i] < franka_o80::robot_positions_min[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
+            if (torques.tau_J[i] != torques.tau_J[i] || abs(torques.tau_J[i]) > franka_o80::robot_torques_max[i])
+                { delete_timer_(); throw franka::ControlException("franka_test: invalid joint torque"); }
+        }
+
+        //Updating state
         for (size_t i = 0; i < 7; i++)
         {
             previous_positions_[i] = positions_[i];
-            positions_[i] += 0.001 * velocities.dq[i];
+            positions_[i] += velocities.dq[i] * 0.001;
         }
+
+        //Exiting
+        if (torques.motion_finished || velocities.motion_finished) break;
     }
     delete_timer_();
+}
+
+void franka::Robot::automaticErrorRecovery()
+{
 }
 
 franka::Gripper::Gripper(std::string ip) : time_distribution_(500, 2000)
@@ -154,7 +252,7 @@ franka::Gripper::Gripper(std::string ip) : time_distribution_(500, 2000)
 franka::GripperState franka::Gripper::readOnce()
 {
     if (reading_.exchange(true) == true) franka::InvalidOperationException("franka_test: control already running");
-    usleep(time_distribution_(random_engine_));
+    std::this_thread::sleep_for(std::chrono::microseconds(time_distribution_(random_engine_)));
     franka::GripperState state;
     state.width = width_;
     state.temperature = 20.0;
@@ -164,6 +262,6 @@ franka::GripperState franka::Gripper::readOnce()
 
 void franka::Gripper::move(double width, double speed)
 {
-    usleep(time_distribution_(random_engine_));
+    std::this_thread::sleep_for(std::chrono::microseconds(time_distribution_(random_engine_)));
     width_ = width;
 }

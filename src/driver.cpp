@@ -244,10 +244,12 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
             else if (input_error == error_ok && input_mode == Mode::invalid) driver->output_.set(control_error, error_robot_invalid_control);
             else if (input_error == error_ok && output_error != error_ok) driver->output_.set(control_error, output_error);
 		}
-		
+
+        //Entering control loop
         try
         {
             if (input_finished) return;
+            else if (input_reset) driver->robot_->automaticErrorRecovery();
             else if (input_reset || input_error != error_ok || input_mode == Mode::invalid) driver->robot_->control(dummy_control);
             else if (input_mode == Mode::velocities) driver->robot_->control(velocities_control);
             else if (input_mode == Mode::torques) driver->robot_->control(torques_control);
@@ -256,6 +258,10 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
             else driver->robot_->control(positions_control);
             output_error = error_ok;
 		}
+        catch (franka::CommandException &e)
+        {
+            output_error = error_robot_command_exception;
+        }
 		catch (franka::ControlException &e)
 		{
 			output_error = error_robot_control_exception;
@@ -280,6 +286,9 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         {
             output_error = error_robot_other_exception;
         }
+
+        //Waiting if failed
+        if (output_error != error_ok) std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 

@@ -1,10 +1,13 @@
 #pragma once
 
+#include "constants.hpp"
 #include <stdexcept>
 #include <functional>
 #include <atomic>
 #include <mutex>
 #include <random>
+#include <chrono>
+#include <thread>
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
@@ -55,11 +58,14 @@ private:
 	double positions_[7];
     double previous_positions_[7];
     std::atomic<bool> control_ = false;
+    std::uniform_int_distribution<unsigned int> time_distribution_;
+    std::default_random_engine random_engine_;
     timer_t timer_;
 
     static void signal_handler_(int sig);
     void create_timer_();
     void delete_timer_();
+    RobotState state_() const;
 
 public:
     Robot(std::string ip);
@@ -69,6 +75,7 @@ public:
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control);
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control, std::function<JointPositions(const RobotState &state, Duration time)> positions_control);
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control, std::function<JointVelocities(const RobotState &state, Duration time)> velocities_control);
+    void automaticErrorRecovery();
 };
 
 class GripperState
@@ -90,6 +97,12 @@ public:
     Gripper(std::string ip);
     GripperState readOnce();
     void move(double width, double speed);
+};
+
+class CommandException : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
 };
 
 class ControlException : public std::runtime_error

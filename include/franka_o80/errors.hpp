@@ -6,18 +6,20 @@ namespace franka_o80 {
 
 	///Invalid robot control mode
 	static const double error_robot_invalid_control = 1.0;
+    ///Robot has thrown `CommandException`
+	static const double error_robot_command_exception = 2.0;
 	///Robot has thrown `ControlException`
-	static const double error_robot_control_exception = 2.0;
+	static const double error_robot_control_exception = 3.0;
 	///Robot has thrown `InvalidOperationException`
-	static const double error_robot_invalid_operation_exception = 3.0;
+	static const double error_robot_invalid_operation_exception = 4.0;
 	///Robot has thrown `NetworkException`
-	static const double error_robot_network_exception = 4.0;
+	static const double error_robot_network_exception = 5.0;
 	///Robot has thrown `RealtimeException`
-	static const double error_robot_realtime_exception = 5.0;
+	static const double error_robot_realtime_exception = 6.0;
 	///Robot has thrown `std::invalid_argument`
-	static const double error_robot_invalid_argument_exception = 6.0;
+	static const double error_robot_invalid_argument_exception = 7.0;
     ///Robot has thrown other exception
-    static const double error_robot_other_exception = 7.0;
+    static const double error_robot_other_exception = 8.0;
 
     ///Gripper has thrown `CommandException`
 	static const double error_gripper_command_exception = 8.0;
