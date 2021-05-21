@@ -11,6 +11,7 @@
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
+#include <syscall.h>
 
 namespace franka {
 
@@ -60,10 +61,14 @@ private:
     std::atomic<bool> control_ = false;
     std::uniform_int_distribution<unsigned int> time_distribution_;
     std::default_random_engine random_engine_;
-    timer_t timer_;
+    
+    #ifndef FRANKA_O80_DEBUG
+        timer_t timer_;
+        static void signal_handler_(int sig);
+    #endif
 
-    static void signal_handler_(int sig);
     void create_timer_();
+    void wait_timer_();
     void delete_timer_();
     RobotState state_() const;
 

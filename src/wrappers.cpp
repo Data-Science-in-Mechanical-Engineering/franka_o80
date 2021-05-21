@@ -28,7 +28,6 @@ PYBIND11_MODULE(franka_o80, m)
 
     //errors.hpp
     m.attr("error_ok")                                  = franka_o80::error_ok;
-    m.attr("error_robot_invalid_control")               = franka_o80::error_robot_invalid_control;
     m.attr("error_robot_command_exception")             = franka_o80::error_robot_command_exception;
     m.attr("error_robot_control_exception")             = franka_o80::error_robot_control_exception;
     m.attr("error_robot_invalid_operation_exception")   = franka_o80::error_robot_invalid_operation_exception;

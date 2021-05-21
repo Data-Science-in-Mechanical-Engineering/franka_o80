@@ -13,7 +13,6 @@ Use same `segment_id` on frontend and backend to "connect" them.
 Some files and directories you may need to know about:
  - `include` - include directory for `C++` programmers
  - `src` - directory containing `C++` sources
- - `srcpy` - directory containing `pybind11` bindings
  - `example` - directory containing finished `franka_arm_api` projects in form of `C++` sources or `Python` files
  - `build` - `cmake` build directory, will contain binary files
  - `build/franka_o80_base.so` - shared library for `C++` programmers

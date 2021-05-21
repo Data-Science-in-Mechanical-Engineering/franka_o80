@@ -34,6 +34,7 @@ private:
 		velocities_torques
 	};
 	
+    bool started_ = false;
     std::string ip_;
     std::unique_ptr<franka::Robot> robot_;
     std::thread robot_control_thread_;
