@@ -5,12 +5,12 @@
 
 void help()
 {
-	std::cout << "Simpliest example of usage of franka_arm_api" << std::endl;
-    std::cout << "S is segment number"                          << std::endl;
-    std::cout << "N is actuator number"                         << std::endl;
-    std::cout << "A is angle"                                   << std::endl;
-    std::cout << "T is time in seconds"                         << std::endl;
-	std::cout << "Usage: ./set_angle_0 S N A T"                 << std::endl;
+	std::cout << "Sets joint angle"         << std::endl;
+    std::cout << "S is segment number"      << std::endl;
+    std::cout << "N is actuator number"     << std::endl;
+    std::cout << "A is angle"               << std::endl;
+    std::cout << "T is time in seconds"     << std::endl;
+	std::cout << "Usage: ./set S N A T"     << std::endl;
 }
 
 int run(int argc, char **argv)
@@ -37,6 +37,10 @@ int run(int argc, char **argv)
 	franka_o80::FrontEnd frontend(franka_o80::get_segment_id(n));
 	
 	//Giving command
+    frontend.add_command(franka_o80::control_positions, franka_o80::State(1.0), o80::Duration_us::seconds(1), o80::Mode::QUEUE);
+    frontend.add_command(franka_o80::control_velocities, franka_o80::State(0.0), o80::Duration_us::seconds(1), o80::Mode::QUEUE);
+    frontend.add_command(franka_o80::control_torques, franka_o80::State(0.0), o80::Duration_us::seconds(1), o80::Mode::QUEUE);
+    for (size_t i = 0; i < 2000; i++) frontend.wait_for_next();
 	frontend.add_command(franka_o80::robot_positions[n], franka_o80::State(a), o80::Duration_us::seconds(t), o80::Mode::QUEUE);
 
 	//Waiting

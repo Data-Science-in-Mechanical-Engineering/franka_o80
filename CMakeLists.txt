@@ -70,6 +70,12 @@ target_link_libraries(franka_o80_backend PUBLIC franka_o80_base)
 add_executable(franka_o80_set example/set.cpp)
 target_link_libraries(franka_o80_set PUBLIC franka_o80_base)
 
+# franka_o80_get #
+##################
+
+add_executable(franka_o80_get example/get.cpp)
+target_link_libraries(franka_o80_get PUBLIC franka_o80_base)
+
 # franka_o80_selftest #
 #######################
 
@@ -123,6 +129,12 @@ target_link_libraries(franka_o80_backend_test PUBLIC franka_o80_base_test)
 
 add_executable(franka_o80_set_test example/set.cpp)
 target_link_libraries(franka_o80_set_test PUBLIC franka_o80_base_test)
+
+# franka_o80_get #
+##################
+
+add_executable(franka_o80_get_test example/get.cpp)
+target_link_libraries(franka_o80_get_test PUBLIC franka_o80_base_test)
 
 # franka_o80_selftest #
 #######################
