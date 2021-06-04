@@ -5,21 +5,22 @@ size_t franka_o80::CartesialStates::robot_joint_ids_[7];
 pinocchio::Model franka_o80::CartesialStates::model_;
 pinocchio::Data franka_o80::CartesialStates::data_;
 
+void franka_o80::CartesialStates::initialize_()
+{
+    pinocchio::urdf::buildModel("../model/franka.urdf", model_);
+    data_ = pinocchio::Data(model_);
+    for (size_t i = 0; i < 7; i++)
+    {
+        std::string name = "panda_joint" + std::to_string(i + 1);
+        if (!model_.existJointName(name)) throw std::runtime_error("Link not found");
+        robot_joint_ids_[i] = model_.getJointId(name);
+    }
+    initialized_ = true;
+}
+
 franka_o80::CartesialStates::CartesialStates()
 {
-    if (!initialized_)
-    {
-        pinocchio::urdf::buildModel("../model/franka.urdf", model_);
-        data_ = pinocchio::Data(model_);
-        for (size_t i = 0; i < 7; i++)
-        {
-            std::string name = "panda_joint" + std::to_string(i + 1);
-            if (!model_.existJointName(name)) throw std::runtime_error("Link not found");
-            robot_joint_ids_[i] = model_.getJointId(name);
-        }
-        initialized_ = true;
-    }
-
+    if (!initialized_) initialize_();
     for (size_t i = 0; i < 22; i++) values[i] = 0.0;
 }
 
@@ -35,6 +36,8 @@ franka_o80::State franka_o80::CartesialStates::get(int actuator) const
 
 franka_o80::CartesialStates franka_o80::to_cartesial(const States &states)
 {
+    if (!CartesialStates::initialized_) CartesialStates::initialize_();
+
     //Joint space
     Eigen::VectorXd positions(CartesialStates::model_.nq);
     positions.setZero();
@@ -72,6 +75,8 @@ franka_o80::States franka_o80::to_joint(const CartesialStates &cartesial, double
 
 franka_o80::States franka_o80::to_joint(const CartesialStates &cartesial, const States &hint, double position0)
 {
+    if (!CartesialStates::initialized_) CartesialStates::initialize_();
+
     //Copying hint
     Eigen::VectorXd result(CartesialStates::model_.nq);
     result.setZero();

@@ -77,14 +77,6 @@ endif()
 add_executable(franka_o80_test_backend example/backend.cpp)
 target_link_libraries(franka_o80_test_backend PUBLIC franka_o80_test_cpp)
 
-# franka_o80_set
-add_executable(franka_o80_test_set example/set.cpp)
-target_link_libraries(franka_o80_test_set PUBLIC roscpp franka_o80_test_cpp)
-
-# franka_o80_get
-add_executable(franka_o80_test_get example/get.cpp)
-target_link_libraries(franka_o80_test_get PUBLIC franka_o80_test_cpp)
-
 # franka_o80_control
 add_executable(franka_o80_test_control example/control.cpp)
 target_link_libraries(franka_o80_test_control PUBLIC franka_o80_test_cpp)
@@ -132,14 +124,6 @@ endif()
 # franka_o80_backend
 add_executable(franka_o80_backend example/backend.cpp)
 target_link_libraries(franka_o80_backend PUBLIC franka_o80_cpp)
-
-# franka_o80_set
-add_executable(franka_o80_set example/set.cpp)
-target_link_libraries(franka_o80_set PUBLIC roscpp franka_o80_cpp)
-
-# franka_o80_get
-add_executable(franka_o80_get example/get.cpp)
-target_link_libraries(franka_o80_get PUBLIC franka_o80_cpp)
 
 # franka_o80_control
 add_executable(franka_o80_control example/control.cpp)

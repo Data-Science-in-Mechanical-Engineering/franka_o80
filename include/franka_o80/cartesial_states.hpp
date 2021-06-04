@@ -25,6 +25,7 @@ private:
     static size_t robot_joint_ids_[7];
     static pinocchio::Model model_;
     static pinocchio::Data data_;
+    static void initialize_();
 
 public:
     ///Creates cartesial state
