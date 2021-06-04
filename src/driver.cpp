@@ -37,7 +37,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 		Mode input_mode;
 		bool input_finished;
         double input_error;
-        franka::JointVelocities input_velocities{};
+        franka::JointVelocities input_velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -46,7 +46,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 			input_reset = driver->input_.get(control_reset) > 0.0;
             input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
 			input_finished = driver->finished_;
-            input_error = driver->input_.get(control_error);
+            input_error = driver->output_.get(control_error);
 
 			//Writing output
 			for (size_t i = 0; i < 7; i++)
@@ -66,9 +66,8 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 		}
 		
 		//If everything is ok or requested to finish
-        if (input_finished || (input_error == error_ok && !input_reset && input_mode != Mode::invalid)) input_velocities.motion_finished = true;
+        input_velocities.motion_finished = input_finished || (input_error == error_ok && !input_reset && input_mode != Mode::invalid);
 		
-		for (size_t i = 0; i < 7; i++) input_velocities.dq[i] = 0.0;
 		return input_velocities;
 	};
     
@@ -80,7 +79,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::JointPositions input_positions{};
+        franka::JointPositions input_positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -90,7 +89,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 			input_reset = driver->input_.get(control_reset) > 0.0;
             input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
 			input_finished = driver->finished_;
-            input_error = driver->input_.get(control_error);
+            input_error = driver->output_.get(control_error);
 
 			//Writing output
 			for (size_t i = 0; i < 7; i++)
@@ -130,7 +129,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::JointVelocities input_velocities{};
+        franka::JointVelocities input_velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -140,7 +139,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 			input_reset = driver->input_.get(control_reset) > 0.0;
             input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
 			input_finished = driver->finished_;
-            input_error = driver->input_.get(control_error);
+            input_error = driver->output_.get(control_error);
 
 			//Writing output
 			for (size_t i = 0; i < 7; i++)
@@ -179,7 +178,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::Torques input_torques{};
+        franka::Torques input_torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -189,7 +188,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 			input_reset = driver->input_.get(control_reset) > 0.0;
             input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
 			input_finished = driver->finished_;
-            input_error = driver->input_.get(control_error);
+            input_error = driver->output_.get(control_error);
 
 			//Writing output
 			for (size_t i = 0; i < 7; i++)
@@ -245,9 +244,11 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         //Entering control loop
         try
         {
+            //printf("Control %u, input %lf, output %lf\n", input_mode, input_error, output_error);
             if (input_finished) return;
             else if (input_reset) driver->robot_->automaticErrorRecovery();
-            else if (input_reset || input_error != error_ok || input_mode == Mode::invalid) driver->robot_->control(dummy_control);
+            
+            if (input_reset || input_error != error_ok || output_error != error_ok || input_mode == Mode::invalid) driver->robot_->control(dummy_control);
             else if (input_mode == Mode::velocities) driver->robot_->control(velocities_control);
             else if (input_mode == Mode::torques) driver->robot_->control(torques_control);
             else if (input_mode == Mode::positions_torques) driver->robot_->control(torques_control, positions_control);
@@ -385,11 +386,13 @@ void franka_o80::Driver::start()
     }
     robot_control_thread_ = std::thread(robot_control_function_, this);
 
+/*
     gripper_ = std::unique_ptr<franka::Gripper>(new franka::Gripper(ip_));
 	franka::GripperState gripper_state = gripper_->readOnce();
     output_.set(gripper_width, gripper_state.width);
     output_.set(gripper_temperature, gripper_state.temperature);
     gripper_control_thread_ = std::thread(gripper_control_function_, this);
+*/
 }
 
 void franka_o80::Driver::set(const DriverInput &input)

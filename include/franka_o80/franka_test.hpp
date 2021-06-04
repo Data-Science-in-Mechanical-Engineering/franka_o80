@@ -1,6 +1,9 @@
 #pragma once
 
 #include "constants.hpp"
+#include "indexes.hpp"
+#include "states.hpp"
+#include <moveit/move_group_interface/move_group_interface.h>
 #include <stdexcept>
 #include <functional>
 #include <atomic>
@@ -56,16 +59,20 @@ public:
 class Robot
 {
 private:
+    const std::string planning_group = "panda_arm";
+
 	double positions_[7];
     double previous_positions_[7];
     std::atomic<bool> control_ = false;
     std::uniform_int_distribution<unsigned int> time_distribution_;
     std::default_random_engine random_engine_;
     
-    #ifndef FRANKA_O80_DEBUG
-        timer_t timer_;
-        static void signal_handler_(int sig);
-    #endif
+    std::vector<double> previous_sent_positions_;
+    std::mutex send_mutex_;
+    std::thread send_thread_;
+    std::unique_ptr<ros::NodeHandle> node_handle_;
+    std::unique_ptr<ros::AsyncSpinner> spinner_;
+    std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_interface_;
 
     void create_timer_();
     void wait_timer_();
@@ -81,6 +88,7 @@ public:
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control, std::function<JointPositions(const RobotState &state, Duration time)> positions_control);
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control, std::function<JointVelocities(const RobotState &state, Duration time)> velocities_control);
     void automaticErrorRecovery();
+    ~Robot();
 };
 
 class GripperState

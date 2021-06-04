@@ -4,53 +4,18 @@ franka::Duration::Duration(unsigned int milliseconds)
 {
 }
 
-#ifndef FRANKA_O80_DEBUG
-    void franka::Robot::signal_handler_(int sig)
-    {
-    }
-#endif
-
 void franka::Robot::create_timer_()
 {
     if (control_.exchange(true) == true) throw franka::InvalidOperationException("franka_test: control already running");
-
-    #ifndef FRANKA_O80_DEBUG
-        struct sigaction signal_action;
-        signal_action.sa_flags = 0;
-        sigemptyset(&signal_action.sa_mask);
-        signal_action.sa_handler = signal_handler_;
-        if (sigaction(SIGRTMIN, &signal_action, NULL) < 0) throw franka::RealtimeException("franka_test: sigaction failed");
-
-        struct sigevent signal_event;
-        signal_event.sigev_notify = SIGEV_THREAD_ID;
-        signal_event._sigev_un._tid = syscall(SYS_gettid);
-        signal_event.sigev_signo = SIGRTMIN;
-        signal_event.sigev_value.sival_ptr = &timer_;
-        if (timer_create(CLOCK_REALTIME, &signal_event, &timer_) < 0) throw franka::RealtimeException("franka_test: timer_create failed");
-
-        struct itimerspec timer_specification;
-        timer_specification.it_value.tv_sec = 0;
-        timer_specification.it_value.tv_nsec = 1000 * 1000;
-        timer_specification.it_interval.tv_sec = 0;
-        timer_specification.it_interval.tv_nsec = 1000 * 1000;
-        if (timer_settime(timer_, 0, &timer_specification, nullptr) < 0) throw franka::RealtimeException("franka_test: timer_create failed");
-    #endif
 }
 
 void franka::Robot::wait_timer_()
 {
-    #ifndef FRANKA_O80_DEBUG
-        pause();
-    #else
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    #endif
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void franka::Robot::delete_timer_()
 {
-    #ifndef FRANKA_O80_DEBUG
-        if (timer_delete(timer_) < 0) throw franka::RealtimeException("franka_test: timer_delete failed");
-    #endif
     control_ = false;
 }
 
@@ -67,13 +32,56 @@ franka::RobotState franka::Robot::state_() const
 
 franka::Robot::Robot(std::string ip) : time_distribution_(500, 2000)
 {
-    for (size_t i = 0; i < 7; i++)
     {
-        positions_[i] = 0.0;
-        previous_positions_[i] = 0.0;
+        franka_o80::States dstates  = franka_o80::default_states();
+        for (size_t i = 0; i < 7; i++) previous_positions_[i] = positions_[i] = dstates.values[franka_o80::robot_positions[i]];
     }
-    positions_[3] = -1.0;
-    previous_positions_[3] = -1.0;
+    
+    char dummy[32] = "franka_o80_test";
+    char *pdummy = &dummy[0];
+    char **ppdummy = &pdummy;
+    int cdummy = 1;
+    ros::init(cdummy, ppdummy, "franka_o80_test");
+    
+    previous_sent_positions_.resize(7);
+    for (size_t i = 0; i < 7; i++) previous_sent_positions_[i] = std::numeric_limits<double>::quiet_NaN();
+    node_handle_ = std::unique_ptr<ros::NodeHandle>(new ros::NodeHandle);
+    spinner_ = std::unique_ptr<ros::AsyncSpinner>(new ros::AsyncSpinner(1));
+    spinner_->start();
+    move_group_interface_ = std::unique_ptr<moveit::planning_interface::MoveGroupInterface>(new moveit::planning_interface::MoveGroupInterface(planning_group));
+    move_group_interface_->setMaxVelocityScalingFactor(1.0);
+    move_group_interface_->setMaxAccelerationScalingFactor(1.0);
+    
+    Robot *robot = this;
+    send_thread_ = std::thread([robot]
+    {
+        while (true)
+        {
+            try
+            {
+                bool update = false;
+                {
+                    std::lock_guard guard(robot->send_mutex_);
+                    for (size_t i = 0; i < 7; i++)
+                    {
+                        if (robot->previous_sent_positions_[i] != robot->positions_[i]) update = true;
+                        robot->previous_sent_positions_[i] = robot->positions_[i];
+                    }
+                }
+                if (update)
+                {
+                    robot->move_group_interface_->setJointValueTarget(robot->previous_sent_positions_);
+                    moveit::planning_interface::MoveGroupInterface::Plan plan;
+                    robot->move_group_interface_->plan(plan);
+                    robot->move_group_interface_->execute(plan);
+                }
+                else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            catch(...)
+            {
+            }
+        }
+    });
 }
 
 franka::RobotState franka::Robot::readOnce()
@@ -98,19 +106,25 @@ void franka::Robot::control(std::function<JointPositions(const RobotState &state
         JointPositions positions = positions_control(state, 1);
 
         //Checcking input
+        printf("Position control: ");
         for (size_t i = 0; i < 7; i++)
         {
+            printf("%lf ", positions.q[i]);
             if (positions.q[i] != positions.q[i] || positions.q[i] < franka_o80::robot_positions_min[i] || positions.q[i] > franka_o80::robot_positions_max[i])
                 { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
             if (abs(positions_[i] - positions.q[i]) > 0.001 * franka_o80::robot_velocities_max[i])
                 { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
         }
+        printf("\n");
 
         //Updating state
-        for (size_t i = 0; i < 7; i++)
         {
-            previous_positions_[i] = positions_[i];
-            positions_[i] = positions.q[i];
+            std::lock_guard guard(send_mutex_);
+            for (size_t i = 0; i < 7; i++)
+            {
+                previous_positions_[i] = positions_[i];
+                positions_[i] = positions.q[i];
+            }
         }
 
         //Exiting
@@ -131,19 +145,25 @@ void franka::Robot::control(std::function<JointVelocities(const RobotState &stat
         JointVelocities velocities = velocities_control(state, 1);
 
         //Checcking input
+        //printf("Velocity control: ");
         for (size_t i = 0; i < 7; i++)
         {
+            //printf("%lf ", velocities.dq[i]);
             if (velocities.dq[i] != velocities.dq[i] || abs(velocities.dq[i]) > franka_o80::robot_velocities_max[i])
                 { delete_timer_(); throw franka::ControlException("franka_test: invalid joint velocity"); }
             if (positions_[i] + 0.001 * velocities.dq[i] > franka_o80::robot_positions_max[i] || positions_[i] + 0.001 * velocities.dq[i] < franka_o80::robot_positions_min[i])
                 { delete_timer_(); throw franka::ControlException("franka_test: invalid joint position"); }
         }
+        //printf("\n");
 
         //Updating state
-        for (size_t i = 0; i < 7; i++)
         {
-            previous_positions_[i] = positions_[i];
-            positions_[i] += velocities.dq[i] * 0.001;
+            std::lock_guard guard(send_mutex_);
+            for (size_t i = 0; i < 7; i++)
+            {
+                previous_positions_[i] = positions_[i];
+                positions_[i] += velocities.dq[i] * 0.001;
+            }
         }
 
         //Exiting
@@ -172,9 +192,12 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
         }
 
         //Updating state
-        for (size_t i = 0; i < 7; i++)
         {
-            previous_positions_[i] = positions_[i];
+            std::lock_guard guard(send_mutex_);
+            for (size_t i = 0; i < 7; i++)
+            {
+                previous_positions_[i] = positions_[i];
+            }
         }
 
         //Exiting
@@ -208,10 +231,13 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
         }
 
         //Updating state
-        for (size_t i = 0; i < 7; i++)
         {
-            previous_positions_[i] = positions_[i];
-            positions_[i] = positions.q[i];
+            std::lock_guard guard(send_mutex_);
+            for (size_t i = 0; i < 7; i++)
+            {
+                previous_positions_[i] = positions_[i];
+                positions_[i] = positions.q[i];
+            }
         }
 
         //Exiting
@@ -243,12 +269,15 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
             if (torques.tau_J[i] != torques.tau_J[i] || abs(torques.tau_J[i]) > franka_o80::robot_torques_max[i])
                 { delete_timer_(); throw franka::ControlException("franka_test: invalid joint torque"); }
         }
-
+        
         //Updating state
-        for (size_t i = 0; i < 7; i++)
         {
-            previous_positions_[i] = positions_[i];
-            positions_[i] += velocities.dq[i] * 0.001;
+            std::lock_guard guard(send_mutex_);
+            for (size_t i = 0; i < 7; i++)
+            {
+                previous_positions_[i] = positions_[i];
+                positions_[i] += velocities.dq[i] * 0.001;
+            }
         }
 
         //Exiting
@@ -258,6 +287,11 @@ void franka::Robot::control(std::function<Torques(const RobotState &state, Durat
 
 void franka::Robot::automaticErrorRecovery()
 {
+}
+
+franka::Robot::~Robot()
+{
+    ros::shutdown();
 }
 
 franka::Gripper::Gripper(std::string ip) : time_distribution_(500, 2000)

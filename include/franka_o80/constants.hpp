@@ -24,6 +24,4 @@ static const double robot_dtorques_max[7] = { 1000, 1000, 1000, 1000, 1000, 1000
 static const int actuator_number = 28;
 ///Command queue size
 static const int queue_size = 40000;
-///Prefix for all segment id's
-static const std::string segment_id_base("franka_o80_");
 }  // namespace franka_o80

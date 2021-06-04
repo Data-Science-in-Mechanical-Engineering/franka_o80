@@ -1,13 +1,16 @@
+#include "../include/franka_o80/cartesial_states.hpp"
 #include "../include/franka_o80/front_end.hpp"
 #include "../include/franka_o80/standalone.hpp"
 #include "../include/franka_o80/indexes.hpp"
 #include "../include/franka_o80/constants.hpp"
 #include "../include/franka_o80/errors.hpp"
+#include "../include/franka_o80/states.hpp"
+
 #include <gtest/gtest.h>
 #include <thread>
 
 static const std::string segment_id("franka_o80_gtest");
-
+/*
 TEST(RobotTest, DummyControl)
 {
     //Start Standalone
@@ -110,6 +113,37 @@ TEST(RobotTest, BadPositionControl)
     EXPECT_NO_THROW(frontend.release());
     EXPECT_NO_THROW(o80::stop_standalone(segment_id));
     EXPECT_FALSE(o80::standalone_is_running(segment_id));
+}
+*/
+
+TEST(CartesialTest, Forward)
+{
+    franka_o80::States states = franka_o80::default_states();
+    franka_o80::CartesialStates cartesial;
+    EXPECT_NO_THROW(cartesial = franka_o80::to_cartesial(states));
+    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[0]], 0.30702, 0.001);
+    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[1]], 0.0, 0.001);
+    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[2]], 0.49727, 0.001);
+}
+
+TEST(CartesialTest, Inverse)
+{
+    franka_o80::CartesialStates cartesial;
+    cartesial.values[franka_o80::cartesial_positions[0]] = 0.30702;
+    cartesial.values[franka_o80::cartesial_positions[1]] = 0.0;
+    cartesial.values[franka_o80::cartesial_positions[2]] = 0.49727;
+    cartesial.values[franka_o80::cartesial_forward[0]] = 0.0;
+    cartesial.values[franka_o80::cartesial_forward[1]] = 0.0;
+    cartesial.values[franka_o80::cartesial_forward[2]] = -1.0;
+    cartesial.values[franka_o80::cartesial_right[0]] = 0.0;
+    cartesial.values[franka_o80::cartesial_right[1]] = -1.0;
+    cartesial.values[franka_o80::cartesial_right[2]] = 0.0;
+    franka_o80::States states;
+    EXPECT_NO_THROW(states = franka_o80::to_joint(cartesial));
+    for (size_t i = 0; i < 7; i++)
+    {
+        EXPECT_NEAR(franka_o80::default_states().values[franka_o80::robot_positions[i]], states.values[franka_o80::robot_positions[i]], 0.001);
+    }
 }
 
 int main(int argc, char **argv)

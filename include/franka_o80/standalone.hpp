@@ -3,6 +3,7 @@
 #include "driver.hpp"
 #include "state.hpp"
 #include "constants.hpp"
+#include "states.hpp"
 #include <o80/memory_clearing.hpp>
 #include <o80/state.hpp>
 #include <o80/standalone.hpp>
@@ -25,4 +26,10 @@ public:
     ///@param driver_output Driver output
     o80::States<actuator_number, State> convert(const DriverOutput &driver_output);
 };
+
+void start_standalone(std::string segment_id, std::string ip);
+bool standalone_is_running(std::string segment_id);
+void please_stop(std::string segment_id);
+void stop_standalone(std::string segment_id);
+
 } // namespace franka_o80

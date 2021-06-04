@@ -3,7 +3,7 @@
 franka_o80::DriverOutput::DriverOutput()
 {}
 
-franka_o80::DriverOutput::DriverOutput(const o80::States<actuator_number, State> &states) : DriverInputOutput(states)
+franka_o80::DriverOutput::DriverOutput(const States &states) : DriverInputOutput(states)
 {}
 
 void franka_o80::DriverOutput::print(bool endl)
