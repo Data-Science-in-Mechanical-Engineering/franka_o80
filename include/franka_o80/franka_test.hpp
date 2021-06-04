@@ -65,7 +65,7 @@ class Robot
 private:
     const std::string planning_group = "panda_arm";
 
-	double positions_[7];
+    double positions_[7];
     double previous_positions_[7];
     std::atomic<bool> control_ = false;
     std::uniform_int_distribution<unsigned int> time_distribution_;
@@ -86,6 +86,17 @@ private:
 public:
     Robot(std::string ip);
     RobotState readOnce();
+    void setCollisionBehavior(
+      		const std::array<double, 7> &lower_torque_thresholds_acceleration,
+		const std::array<double, 7> &upper_torque_thresholds_acceleration,
+		const std::array<double, 7> &lower_torque_thresholds_nominal,
+		const std::array<double, 7> &upper_torque_thresholds_nominal,
+		const std::array<double, 6> &lower_force_thresholds_acceleration,
+		const std::array<double, 6> &upper_force_thresholds_acceleration,
+		const std::array<double, 6> &lower_force_thresholds_nominal,
+		const std::array<double, 6> &upper_force_thresholds_nominal);
+    void setJointImpedance(const std::array<double, 7> &impedance);
+    void setCartesianImpedance(const std::array<double, 6> &impedance);
     void control(std::function<JointPositions(const RobotState &state, Duration time)> positions_control);
     void control(std::function<JointVelocities(const RobotState &state, Duration time)> velocities_control);
     void control(std::function<Torques(const RobotState &state, Duration time)> torques_control);

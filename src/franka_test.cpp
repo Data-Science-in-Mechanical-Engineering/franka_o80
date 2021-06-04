@@ -109,6 +109,27 @@ franka::RobotState franka::Robot::readOnce()
     return state;
 }
 
+
+void franka::Robot::setCollisionBehavior(
+      		const std::array<double, 7> &lower_torque_thresholds_acceleration,
+		const std::array<double, 7> &upper_torque_thresholds_acceleration,
+		const std::array<double, 7> &lower_torque_thresholds_nominal,
+		const std::array<double, 7> &upper_torque_thresholds_nominal,
+		const std::array<double, 6> &lower_force_thresholds_acceleration,
+		const std::array<double, 6> &upper_force_thresholds_acceleration,
+		const std::array<double, 6> &lower_force_thresholds_nominal,
+		const std::array<double, 6> &upper_force_thresholds_nominal)
+{
+}
+
+void franka::Robot::setJointImpedance(const std::array<double, 7> &impedance)
+{
+}
+
+void franka::Robot::setCartesianImpedance(const std::array<double, 6> &impedance)
+{
+}
+
 void franka::Robot::control(std::function<JointPositions(const RobotState &state, Duration time)> positions_control)
 {
     create_timer_();

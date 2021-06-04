@@ -28,6 +28,8 @@ double franka_o80::Driver::get_control_torque(Mode mode)
     else return 0.0;
 }
 
+#include <fstream>
+
 void franka_o80::Driver::robot_control_function_(Driver *driver)
 {
 	//Zero velocity control function
@@ -350,7 +352,7 @@ void franka_o80::Driver::gripper_control_function_(Driver *driver)
         if (input_finished) return;
         else if (!input_reset && input_error == error_ok && input_mode != Mode::invalid) try
         {
-		    if (input_width == input_width) driver->gripper_->move(input_width, abs(width - input_width) * 1000.0);
+		    if (input_width == input_width) driver->gripper_->move(input_width, 0.1); //Fix magic number
             output_error = error_ok;
         }
         catch (franka::NetworkException &e)
@@ -377,7 +379,15 @@ void franka_o80::Driver::start()
     if (started_) return;
     started_ = true;
 
+    //Starting robot
     robot_ = std::unique_ptr<franka::Robot>(new franka::Robot(ip_));
+    robot_->setCollisionBehavior(
+      {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
+      {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}},
+      {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
+      {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0}});
+    robot_->setJointImpedance({{3000, 3000, 3000, 2500, 2500, 2000, 2000}});
+    robot_->setCartesianImpedance({{3000, 3000, 3000, 300, 300, 300}});
     franka::RobotState robot_state = robot_->readOnce();
     for (size_t i = 0; i < 7; i++)
     {
@@ -387,13 +397,12 @@ void franka_o80::Driver::start()
     }
     robot_control_thread_ = std::thread(robot_control_function_, this);
 
-/*
+    //Starting gripper
     gripper_ = std::unique_ptr<franka::Gripper>(new franka::Gripper(ip_));
 	franka::GripperState gripper_state = gripper_->readOnce();
     output_.set(gripper_width, gripper_state.width);
     output_.set(gripper_temperature, gripper_state.temperature);
     gripper_control_thread_ = std::thread(gripper_control_function_, this);
-*/
 }
 
 void franka_o80::Driver::set(const DriverInput &input)
