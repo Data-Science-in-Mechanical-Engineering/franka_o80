@@ -37,7 +37,8 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
 		Mode input_mode;
 		bool input_finished;
         double input_error;
-        franka::JointVelocities input_velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        
+        franka::JointVelocities input_velocities(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -79,7 +80,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::JointPositions input_positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        franka::JointPositions input_positions(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -129,7 +130,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::JointVelocities input_velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        franka::JointVelocities input_velocities(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
@@ -178,7 +179,7 @@ void franka_o80::Driver::robot_control_function_(Driver *driver)
         bool input_mode_switch;
 		bool input_finished;
         double input_error;
-        franka::Torques input_torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        franka::Torques input_torques(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);

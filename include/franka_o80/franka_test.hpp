@@ -11,6 +11,7 @@
 #include <random>
 #include <chrono>
 #include <thread>
+#include <array>
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
@@ -41,18 +42,21 @@ public:
 class JointPositions : public Finishable
 {
 public:
+    JointPositions(const std::array<double, 7> &positions);
     double q[7];
 };
 
 class JointVelocities : public Finishable
 {
 public:
+    JointVelocities(const std::array<double, 7> &velocities);
     double dq[7];
 };
 
 class Torques : public Finishable
 {
 public:
+    Torques(const std::array<double, 7> &torques);
     double tau_J[7];
 };
 

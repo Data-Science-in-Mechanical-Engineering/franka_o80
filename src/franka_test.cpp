@@ -4,6 +4,22 @@ franka::Duration::Duration(unsigned int milliseconds)
 {
 }
 
+franka::JointPositions::JointPositions(const std::array<double, 7> &positions)
+{
+    for (size_t i = 0; i < 7; i++) q[i] = positions[i];
+}
+
+franka::JointVelocities::JointVelocities(const std::array<double, 7> &velocities)
+{
+    for (size_t i = 0; i < 7; i++) dq[i] = velocities[i];
+}
+
+franka::Torques::Torques(const std::array<double, 7> &torques)
+{
+    for (size_t i = 0; i < 7; i++) tau_J[i] = torques[i];
+}
+
+
 void franka::Robot::create_timer_()
 {
     if (control_.exchange(true) == true) throw franka::InvalidOperationException("franka_test: control already running");
