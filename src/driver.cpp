@@ -550,6 +550,7 @@ void franka_o80::Driver::start()
     cartesian_damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness) * Eigen::Matrix<double, 3, 3>::Identity();
     joint_stiffness_.setZero();
     joint_stiffness_.diagonal() << 600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0;
+    joint_damping_.setZero();
     joint_damping_.diagonal() << 50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0;
 
     //Starting robot
