@@ -10,29 +10,24 @@ std::string franka_o80::DriverInputOutput::to_string(bool output) const
 {
     //Status
     std::string result;
-    result += " [ ";
-    if (!output) { result += " p: "; result += std::to_string(get(control_positions).get()); }
-    if (!output) { result += " v: "; result += std::to_string(get(control_velocities).get()); }
-    if (!output) { result += " t: "; result += std::to_string(get(control_torques).get()); }
-    if (output) { result += " e: "; result += std::to_string(get(control_error).get()); }
-    if (!output) { result += " r: "; result += std::to_string(get(control_reset).get()); }
-    result += " ] ";
+    result += "control_mode: "; result += get(control_mode).to_string();
+    result += " control_error: "; result += get(control_error).to_string();
+    result += " control_reset: "; result += get(control_reset).to_string();
 
-    //Robot
-    for (size_t i = 0; i < 7; i++)
-    {
-        result += " [ ";
-        if (get(control_positions) == 1.0) { result += " p: "; result += get(robot_positions[i]).get(); }
-        if (get(control_velocities) == 1.0) { result += " v: "; result += get(robot_velocities[i]).get(); }
-        if (get(control_torques) == 1.0) { result += " t: "; result += get(robot_torques[i]).get(); }
-        result += " ] ";
-    }
     //Gripper
-    result += "+";
-    result += " [ ";
-    result += " w: "; result += std::to_string(get(gripper_width).get());
-    if (output) { result += " t: "; result += get(gripper_temperature).get(); }
-    result += " ] ";
+    result += " gripper_width: "; result += get(gripper_width).to_string();
+    result += " gripper_temperature: "; result += get(gripper_temperature).to_string();
+
+    //Robot joints
+    result += " joint_position: [ "; for (size_t i = 0; i < 7; i++) { result += get(joint_position[i]).to_string(); result += " "; } result += "]";
+    result += " joint_velocity: [ "; for (size_t i = 0; i < 7; i++) { result += get(joint_velocity[i]).to_string(); result += " "; } result += "]";
+    result += " joint_torque: [ "; for (size_t i = 0; i < 7; i++) { result += get(joint_torque[i]).to_string(); result += " "; } result += "]";
+
+    //Robot cartesian
+    result += " cartesian_position: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_position[i]).to_string(); result += " "; } result += "]";
+    result += " cartesian_orientation: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_orientation[i]).to_string(); result += " "; } result += "]";
+    result += " cartesian_velocitiy: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_velocity[i]).to_string(); result += " "; } result += "]";
+    result += " cartesian_rotation: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_rotation[i]).to_string(); result += " "; } result += "]";
 
     return result;
 }

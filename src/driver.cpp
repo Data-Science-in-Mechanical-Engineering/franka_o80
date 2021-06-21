@@ -1,301 +1,463 @@
 #include "../include/franka_o80/driver.hpp"
 
-franka_o80::Driver::Mode franka_o80::Driver::get_mode(double positions, double velocities, double torques)
+void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_state)
 {
-	if (positions == 1.0 && velocities == 0.0 && torques == 0.0) return Mode::positions;
-	else if (positions == 0.0 && velocities == 1.0 && torques == 0.0) return Mode::velocities;
-	else if (positions == 0.0 && velocities == 0.0 && torques == 1.0) return Mode::torques;
-	else if (positions == 1.0 && velocities == 0.0 && torques == 1.0) return Mode::positions_torques;
-	else if (positions == 0.0 && velocities == 1.0 && torques == 1.0) return Mode::velocities_torques;
-	else return Mode::invalid;
+    //Joints
+    for (size_t i = 0; i < 7; i++)
+    {
+        output_.set(joint_position[i], robot_state.q[i]);
+        output_.set(joint_velocity[i], robot_state.dq[i]);
+        output_.set(joint_torque[i], robot_state.tau_J[i]);
+    }
+
+    //Cartesian
+    Eigen::Affine3d transform(Eigen::Matrix<double, 4, 4>::Map(robot_state.O_T_EE.data()));
+    Eigen::Vector3d position = transform.translation();
+    Eigen::Vector3d orientation = transform.linear().eulerAngles(0, 1, 2);
+    Eigen::Matrix<double, 6, 7> jacobian = Eigen::Matrix<double, 6, 7>::Map(model_->zeroJacobian(franka::Frame::kEndEffector, robot_state).data());
+    Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
+    Eigen::Matrix<double, 6, 1> velocity = jacobian * joint_velocities;
+    for (size_t i = 0; i < 3; i++)
+    {
+        output_.set(cartesian_position[i], position(i));
+        output_.set(cartesian_orientation[i], orientation(i));
+        output_.set(cartesian_velocity[i], velocity(i));
+        output_.set(cartesian_rotation[i], velocity(i + 3));
+    }
 }
 
-double franka_o80::Driver::get_control_position(Mode mode)
+void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *positions)
 {
-    if (mode == Mode::positions || mode == Mode::positions_torques) return 1.0;
-    else return 0.0;
+    //Locking
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
+
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
+
+    //Exit
+    if (input_finished || (input_error == Error::ok && !input_reset && input_mode != Mode::invalid))
+    {
+        output_.set(control_mode, Mode::invalid);
+        mode_ = input_mode;
+        positions->motion_finished = true;
+    }
+    //Normal
+    else
+    {
+        output_.set(control_mode, Mode::invalid);
+        mode_ = Mode::invalid;
+    }
+
+    //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
 }
 
-double franka_o80::Driver::get_control_velocity(Mode mode)
+void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState &robot_state, franka::Torques *torques)
 {
-    if (mode == Mode::velocities || mode == Mode::velocities_torques) return 1.0;
-    else return 0.0;
-}
-
-double franka_o80::Driver::get_control_torque(Mode mode)
-{
-    if (mode == Mode::torques || mode == Mode::positions_torques || mode == Mode::velocities_torques) return 1.0;
-    else return 0.0;
-}
-
-#include <fstream>
-
-void franka_o80::Driver::robot_control_function_(Driver *driver)
-{
-	//Zero velocity control function
-	auto dummy_control = [driver](const franka::RobotState &state, franka::Duration time) -> franka::JointVelocities
-	{
-		bool input_reset;
-		Mode input_mode;
-		bool input_finished;
-        double input_error;
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
         
-        franka::JointVelocities input_velocities(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
-		{
-			//Locking
-			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
-
-			//Reading input
-			input_reset = driver->input_.get(control_reset) > 0.0;
-            input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-			input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
-
-			//Writing output
-			for (size_t i = 0; i < 7; i++)
-			{
-				driver->output_.set(robot_positions[i], state.q[i]);
-				driver->output_.set(robot_velocities[i], state.dq[i]);
-				driver->output_.set(robot_torques[i], state.tau_J[i]);
-			}
-			driver->output_.set(control_positions, 0.0);
-			driver->output_.set(control_velocities, 0.0);
-			driver->output_.set(control_torques, 0.0);
-            driver->output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) driver->output_.set(control_error, error_ok);
-            
-            //Switching mode
-            if (input_mode != Mode::invalid) driver->mode_ = input_mode;
-		}
-		
-		//If everything is ok or requested to finish
-        input_velocities.motion_finished = input_finished || (input_error == error_ok && !input_reset && input_mode != Mode::invalid);
-		
-		return input_velocities;
-	};
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
     
-	//Position control function
-	auto positions_control = [driver](const franka::RobotState &state, franka::Duration time) -> franka::JointPositions
-	{
-		bool input_reset;
-		Mode input_mode;
-        bool input_mode_switch;
-		bool input_finished;
-        double input_error;
-        franka::JointPositions input_positions(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
-		{
-			//Locking
-			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
-			
-			//Reading input
-            for (size_t i = 0; i < 7; i++) input_positions.q[i] = driver->input_.get(robot_positions[i]);
-			input_reset = driver->input_.get(control_reset) > 0.0;
-            input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-			input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
+    bool switching_mode = input_mode != mode_ && !
+    ((mode_ == Mode::torque || mode_ == Mode::intelligent_position || mode_ == Mode::intelligent_cartesian_position) &&
+    (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position));
+    
+    //Exit
+    if (switching_mode || input_finished || input_error != Error::ok || input_reset)
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, Mode::invalid);
 
-			//Writing output
-			for (size_t i = 0; i < 7; i++)
-			{
-				driver->output_.set(robot_positions[i], state.q[i]);
-				driver->output_.set(robot_velocities[i], state.dq[i]);
-				driver->output_.set(robot_torques[i], state.tau_J[i]);
-			}
+        //Calculating damping torque
+        Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
+        Eigen::Matrix<double, 7, 1> coriolis = Eigen::Matrix<double, 7, 1>::Map(model_->coriolis(robot_state).data());
+        Eigen::Matrix<double, 7, 1> joint_torques = -joint_damping_ * joint_velocities + coriolis;
+        Eigen::Matrix<double, 7, 1>::Map(&torques->tau_J[0]) = joint_torques;
+        torques->motion_finished = true;
+    }
+    //Intelligent position
+    else if (input_mode == Mode::intelligent_position)
+    {
+        mode_ = Mode::intelligent_position;
+        output_.set(control_mode, Mode::intelligent_position);
 
-			driver->output_.set(control_positions, get_control_position(driver->mode_));
-			driver->output_.set(control_velocities, get_control_velocity(driver->mode_));
-			driver->output_.set(control_torques, get_control_torque(driver->mode_));
-            driver->output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) driver->output_.set(control_error, error_ok);
-            
-            //Switching mode
-            if (driver->mode_ != input_mode)
-            {
-                input_mode_switch = true;
-                driver->mode_ = input_mode;
-            }
-            else input_mode_switch = false;
-		}
-		
-		//If something is not ok or requested to finish
-        if (input_finished || input_error != error_ok || input_reset || input_mode_switch) input_positions.motion_finished = true;
-		
-        for (size_t i = 0; i < 7; i++) { if (input_positions.q[i] != input_positions.q[i]) input_positions.q[i] = state.q[i]; }
-		return input_positions;
-	};
-	
-	//Velocity control function
-	auto velocities_control = [driver](const franka::RobotState &state, franka::Duration time) -> franka::JointVelocities
-	{
-		bool input_reset;
-		Mode input_mode;
-        bool input_mode_switch;
-		bool input_finished;
-        double input_error;
-        franka::JointVelocities input_velocities(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
-		{
-			//Locking
-			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
-			
-			//Reading input
-            for (size_t i = 0; i < 7; i++) input_velocities.dq[i] = driver->input_.get(robot_velocities[i]);
-			input_reset = driver->input_.get(control_reset) > 0.0;
-            input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-			input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
+        //Reading input
+        Eigen::Matrix<double, 7, 1> input_target_joint_positions;
+        for (size_t i = 0; i < 7; i++) input_target_joint_positions(i) = input_.get(joint_position[i]);
 
-			//Writing output
-			for (size_t i = 0; i < 7; i++)
-			{
-				driver->output_.set(robot_positions[i], state.q[i]);
-				driver->output_.set(robot_velocities[i], state.dq[i]);
-				driver->output_.set(robot_torques[i], state.tau_J[i]);
-			}
-			driver->output_.set(control_positions, get_control_position(driver->mode_));
-			driver->output_.set(control_velocities, get_control_velocity(driver->mode_));
-			driver->output_.set(control_torques, get_control_torque(driver->mode_));
-            driver->output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) driver->output_.set(control_error, error_ok);
-            
-            //Switching mode
-            if (driver->mode_ != input_mode)
-            {
-                input_mode_switch = true;
-                driver->mode_ = input_mode;
-            }
-            else input_mode_switch = false;
-		}
-		
-		//If something is not ok or requested to finish
-        if (input_finished || input_error != error_ok || input_reset || input_mode_switch) input_velocities.motion_finished = true;
-		
-        for (size_t i = 0; i < 7; i++) { if (input_velocities.dq[i] != input_velocities.dq[i]) input_velocities.dq[i] = 0.0; }
-		return input_velocities;
-	};
-	
-	//Torque control function
-	auto torques_control = [driver](const franka::RobotState &state, franka::Duration time) -> franka::Torques
-	{
-		bool input_reset;
-		Mode input_mode;
-        bool input_mode_switch;
-		bool input_finished;
-        double input_error;
-        franka::Torques input_torques(std::array<double ,7>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
-		{
-			//Locking
-			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
-			
-			//Reading input
-            for (size_t i = 0; i < 7; i++) input_torques.tau_J[i] = driver->input_.get(robot_torques[i]);
-			input_reset = driver->input_.get(control_reset) > 0.0;
-            input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-			input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
+        //Calculating torque
+        Eigen::Matrix<double, 7, 1> joint_positions = Eigen::Matrix<double, 7, 1>::Map(robot_state.q.data());
+        Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
+        Eigen::Matrix<double, 7, 1> coriolis = Eigen::Matrix<double, 7, 1>::Map(model_->coriolis(robot_state).data());
+        Eigen::Matrix<double, 7, 1> joint_torques = -joint_stiffness_ * (joint_positions - input_target_joint_positions) - joint_damping_ * joint_velocities + coriolis;
+        Eigen::Matrix<double, 7, 1>::Map(&torques->tau_J[0]) = joint_torques;
+    }
+    //Intelligent cartesian position
+    else if (input_mode == Mode::intelligent_cartesian_position)
+    {
+        mode_ = Mode::intelligent_cartesian_position;
+        output_.set(control_mode, Mode::intelligent_cartesian_position);
 
-			//Writing output
-			for (size_t i = 0; i < 7; i++)
-			{
-				driver->output_.set(robot_positions[i], state.q[i]);
-				driver->output_.set(robot_velocities[i], state.dq[i]);
-				driver->output_.set(robot_torques[i], state.tau_J[i]);
-			}
-			driver->output_.set(control_positions, get_control_position(driver->mode_));
-			driver->output_.set(control_velocities, get_control_velocity(driver->mode_));
-			driver->output_.set(control_torques, get_control_torque(driver->mode_));
-            driver->output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) driver->output_.set(control_error, error_ok);
-            
-            //Switching mode
-            if (driver->mode_ != input_mode)
-            {
-                input_mode_switch = true;
-                driver->mode_ = input_mode;
-            }
-            else input_mode_switch = false;
-		}
-		
-		//If something is not ok or requested to finish
-        if (input_finished || input_error != error_ok || input_reset || input_mode_switch) input_torques.motion_finished = true;
-		
-        for (size_t i = 0; i < 7; i++) { if (input_torques.tau_J[i] != input_torques.tau_J[i]) input_torques.tau_J[i] = state.tau_J[i]; }
-		return input_torques;
-	};
-	
-    double output_error = error_ok;
+        //Reading input
+        Eigen::Matrix<double, 3, 1> input_target_position;
+        for (size_t i = 0; i < 3; i++) input_target_position(i) = input_.get(cartesian_position[0]);
+        Eigen::Quaterniond input_target_orientation = 
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitX()) *
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitZ());
+
+        //Calculating torque
+        Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
+        Eigen::Affine3d transform(Eigen::Matrix<double, 4, 4>::Map(robot_state.O_T_EE.data()));
+        Eigen::Vector3d position = transform.translation();
+        Eigen::Quaterniond orientation; orientation = transform.linear();
+        Eigen::Matrix<double, 7, 1> coriolis = Eigen::Matrix<double, 7, 1>::Map(model_->coriolis(robot_state).data());
+        Eigen::Matrix<double, 6, 7> jacobian = Eigen::Matrix<double, 6, 7>::Map(model_->zeroJacobian(franka::Frame::kEndEffector, robot_state).data());
+        Eigen::Matrix<double, 6, 1> error;
+        error.head(3) << position - input_target_position;
+        if (input_target_orientation.coeffs().dot(orientation.coeffs()) < 0.0) orientation.coeffs() = -orientation.coeffs();
+        Eigen::Quaterniond orientation_error = orientation.inverse() * input_target_orientation;
+        error.tail(3) << orientation_error.x(), orientation_error.y(), orientation_error.z();
+        error.tail(3) << -transform.linear() * error.tail(3);
+        Eigen::Matrix<double, 7, 1> joint_torques = jacobian.transpose() * (-cartesian_stiffness_ * error - cartesian_damping_ * jacobian * joint_velocities) + coriolis;
+        Eigen::Matrix<double, 7, 1>::Map(&torques->tau_J[0]) = joint_torques;
+    }
+    //Simple torque
+    else
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, input_mode);
+
+        //Reading input and calculating torques
+        for (size_t i = 0; i < 7; i++) torques->tau_J[i] = input_.get(joint_torque[i]);
+    }
+    
+    //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
+}
+
+void franka_o80::Driver::robot_position_control_function_(const franka::RobotState &robot_state, franka::JointPositions *positions)
+{
+    //Locking
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
+    
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
+
+    //Exit
+    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset)
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, Mode::invalid);
+        for (size_t i = 0; i < 7; i++) positions->q[i] = robot_state.q[i];
+        positions->motion_finished = true;
+    }
+    //Normal
+    else
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, mode_);
+        for (size_t i = 0; i < 7; i++) positions->q[i] = input_.get(joint_position[i]);
+    }
+
+   //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
+}
+
+void franka_o80::Driver::robot_velocity_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities)
+{
+    //Locking
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
+    
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
+
+    //Exit
+    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset)
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, Mode::invalid);
+        for (size_t i = 0; i < 7; i++) velocities->dq[i] = 0.0;
+        velocities->motion_finished = true;
+    }
+    //Normal
+    else
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, mode_);
+        for (size_t i = 0; i < 7; i++) velocities->dq[i] = input_.get(joint_velocity[i]);
+    }
+
+    //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
+}
+
+void franka_o80::Driver::robot_cartesian_position_control_function_(const franka::RobotState &robot_state, franka::CartesianPose *positions)
+{
+    //Locking
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
+    
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
+
+    //Exit
+    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset)
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, Mode::invalid);
+        for (size_t i = 0; i < 16; i++) positions->O_T_EE[i] = robot_state.O_T_EE[i];
+        for (size_t i = 0; i < 2; i++) positions->elbow[i] = robot_state.elbow[i];
+        positions->motion_finished = true;
+    }
+    //Normal
+    else
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, mode_);
+        Eigen::Affine3d transform =
+            Eigen::Translation3d(input_.get(cartesian_position[0]), input_.get(cartesian_position[1]), input_.get(cartesian_position[2])) *
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitZ()) *
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitX());
+        Eigen::Matrix<double, 4, 4>::Map(&positions->O_T_EE[0]) = transform.matrix();
+        positions->elbow[0] = input_.get(joint_position[2]);
+        positions->elbow[1] = input_.get(joint_position[3]) > 0.0 ? 1.0 : -1.0;
+    }
+
+    //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
+}
+
+void franka_o80::Driver::robot_cartesian_velocity_control_function_(const franka::RobotState &robot_state, franka::CartesianVelocities *velocities)
+{
+    //Locking
+    std::lock_guard<std::mutex> guard(input_output_mutex_);
+        
+    //Reading input
+    bool input_reset = input_.get(control_reset) > 0.0;
+    Mode input_mode = input_.get(control_mode);
+    bool input_finished = input_finished_;
+    Error input_error = output_.get(control_error);
+
+    //Exit
+    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset)
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, Mode::invalid);
+        for (size_t i = 0; i < 6; i++) velocities->O_dP_EE[i] = 0.0;
+        velocities->motion_finished = true;
+    }
+    //Normal
+    else
+    {
+        mode_ = input_mode;
+        output_.set(control_mode, mode_);
+        for (size_t i = 0; i < 3; i++)
+        {
+            velocities->O_dP_EE[i] = input_.get(cartesian_velocity[i]);
+            velocities->O_dP_EE[i + 3] = input_.get(cartesian_rotation[i]);
+        }
+        velocities->elbow[0] = input_.get(joint_position[2]);
+        velocities->elbow[1] = input_.get(joint_position[3]) > 0.0 ? 1.0 : -1.0;
+    }
+
+    //Writing output
+    robot_write_output_(robot_state);
+    output_.set(control_reset, input_reset ? 1.0 : 0.0);
+    if (input_reset) output_.set(control_error, Error::ok);
+}
+
+void franka_o80::Driver::robot_control_function_()
+{
+    Error output_error = Error::ok;
 	while (true)
 	{
         bool input_reset;
         Mode input_mode;
 		bool input_finished;
-        double input_error;
+        Error input_error;
 		{
 			//Locking
-			std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
+			std::lock_guard<std::mutex> guard(input_output_mutex_);
 			
             //Reading input
-			input_reset = driver->input_.get(control_reset).get() > 0.0;
-			input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-			input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
+			input_reset = input_.get(control_reset).get() > 0.0;
+			input_mode = input_.get(control_mode);
+			input_finished = input_finished_;
+            input_error = output_.get(control_error);
             
             //Writing output
-            if (input_reset) driver->output_.set(control_error, error_ok);
-            else if (input_error == error_ok && output_error != error_ok) driver->output_.set(control_error, output_error);
+            if (input_reset) output_.set(control_error, Error::ok);
+            else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
 		}
 
         //Entering control loop
         try
         {
-            //printf("Control %u, input %lf, output %lf\n", input_mode, input_error, output_error);
             if (input_finished) return;
-            else if (input_reset) driver->robot_->automaticErrorRecovery();
+            else if (input_reset) robot_->automaticErrorRecovery();
             
-            if (input_reset || input_error != error_ok || output_error != error_ok || input_mode == Mode::invalid) driver->robot_->control(dummy_control);
-            else if (input_mode == Mode::velocities) driver->robot_->control(velocities_control);
-            else if (input_mode == Mode::torques) driver->robot_->control(torques_control);
-            else if (input_mode == Mode::positions_torques) driver->robot_->control(torques_control, positions_control);
-            else if (input_mode == Mode::velocities_torques) driver->robot_->control(torques_control, velocities_control);
-            else driver->robot_->control(positions_control);
-            output_error = error_ok;
+            Driver *driver = this;
+            if (input_reset || input_error != Error::ok || output_error != Error::ok || input_mode == Mode::invalid) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
+                {
+                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_dummy_control_function_(robot_state, &velocities);
+                    return velocities;
+                });
+            else if (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
+                {
+                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_torque_control_function_(robot_state, &torques);
+                    return torques;
+                });
+            else if (input_mode == Mode::torque_position) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
+                {
+                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_torque_control_function_(robot_state, &torques);
+                    return torques;
+                },
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointPositions
+                {
+                    franka::JointPositions positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_position_control_function_(robot_state, &positions);
+                    return positions;
+                });
+            else if (input_mode == Mode::torque_velocity) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
+                {
+                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_torque_control_function_(robot_state, &torques);
+                    return torques;
+                },
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
+                {
+                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_velocity_control_function_(robot_state, &velocities);
+                    return velocities;
+                });
+            else if (input_mode == Mode::torque_cartesian_position) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
+                {
+                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_torque_control_function_(robot_state, &torques);
+                    return torques;
+                },
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianPose
+                {
+                    franka::CartesianPose cartesian_position{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
+                    return cartesian_position;
+                });
+            else if (input_mode == Mode::torque_cartesian_velocity) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
+                {
+                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_torque_control_function_(robot_state, &torques);
+                    return torques;
+                },
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianVelocities
+                {
+                    franka::CartesianVelocities cartesian_velocity{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
+                    return cartesian_velocity;
+                });
+            else if (input_mode == Mode::position) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointPositions
+                {
+                    franka::JointPositions positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_position_control_function_(robot_state, &positions);
+                    return positions;
+                });
+            else if (input_mode == Mode::velocity) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
+                {
+                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_velocity_control_function_(robot_state, &velocities);
+                    return velocities;
+                });
+            else if (input_mode == Mode::cartesian_position) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianPose
+                {
+                    franka::CartesianPose cartesian_position{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
+                    return cartesian_position;
+                });
+            else if (input_mode == Mode::cartesian_velocity) robot_->control(
+                [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianVelocities
+                {
+                    franka::CartesianVelocities cartesian_velocity{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
+                    return cartesian_velocity;
+                });
+
+            output_error = Error::ok;
 		}
         catch (franka::CommandException &e)
         {
-            output_error = error_robot_command_exception;
+            output_error = Error::robot_command_exception;
         }
 		catch (franka::ControlException &e)
 		{
-			output_error = error_robot_control_exception;
+			output_error = Error::robot_control_exception;
 		}
 		catch (franka::InvalidOperationException &e)
         {
-            output_error = error_robot_invalid_operation_exception;
+            output_error = Error::robot_invalid_operation_exception;
         }
         catch (franka::NetworkException &e)
         {
-            output_error = error_robot_network_exception;
+            output_error = Error::robot_network_exception;
         }
         catch (franka::RealtimeException &e)
         {
-            output_error = error_robot_realtime_exception;
+            output_error = Error::robot_realtime_exception;
         }
         catch (std::invalid_argument &e)
         {
-            output_error = error_robot_invalid_argument_exception;
+            output_error = Error::robot_invalid_argument_exception;
         }
         catch (...)
         {
-            output_error = error_robot_other_exception;
+            output_error = Error::robot_other_exception;
         }
 
         //Waiting if failed
-        if (output_error != error_ok) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (output_error != Error::ok) std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 
-void franka_o80::Driver::gripper_control_function_(Driver *driver)
+void franka_o80::Driver::gripper_control_function_()
 {
-    double output_error = error_ok;
+    Error output_error = Error::ok;
     while (true)
     {
         //Measuring state
@@ -303,69 +465,67 @@ void franka_o80::Driver::gripper_control_function_(Driver *driver)
         double temperature;
         try
         {
-		    franka::GripperState state = driver->gripper_->readOnce(); 
+		    franka::GripperState state = gripper_->readOnce(); 
             width = state.width;
             temperature = state.temperature;
-            output_error = error_ok;
+            output_error = Error::ok;
         }
         catch (franka::NetworkException &e)
         {
-            output_error = error_gripper_network_exception;
+            output_error = Error::gripper_network_exception;
         }
         catch (franka::InvalidOperationException)
         {
-            output_error = error_gripper_invalid_operation_exception;
+            output_error = Error::gripper_invalid_operation_exception;
         }
         catch (...)
         {
-            output_error = error_gripper_invalid_operation_exception;
+            output_error = Error::gripper_invalid_operation_exception;
         }
 
         bool input_reset;
         Mode input_mode;
         bool input_finished;
-        double input_error;
+        Error input_error;
         double input_width;
         {
             //Locking
-            std::lock_guard<std::mutex> guard(driver->input_output_mutex_);
+            std::lock_guard<std::mutex> guard(input_output_mutex_);
 
             //Reading input
-            input_reset = driver->input_.get(control_reset) > 0.0;
-            input_mode = get_mode(driver->input_.get(control_positions), driver->input_.get(control_velocities), driver->input_.get(control_torques));
-            input_finished = driver->finished_;
-            input_error = driver->output_.get(control_error);
-            input_width = driver->input_.get(gripper_width);
+            input_reset = input_.get(control_reset) > 0.0;
+            input_mode = input_.get(control_mode);
+            input_finished = input_finished_;
+            input_error = output_.get(control_error);
+            input_width = input_.get(gripper_width);
 
             //Writing output
-            driver->output_.set(gripper_width, width);
-            driver->output_.set(gripper_temperature, temperature);
-            driver->output_.set(control_positions, get_control_position(driver->mode_));
-			driver->output_.set(control_velocities, get_control_velocity(driver->mode_));
-			driver->output_.set(control_torques, get_control_torque(driver->mode_));
-            driver->output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) driver->output_.set(control_error, error_ok);
-            else if (input_error == error_ok && output_error != error_ok) driver->output_.set(control_error, output_error);
+            output_.set(gripper_width, width);
+            output_.set(gripper_temperature, temperature);
+            output_.set(control_mode, mode_);
+			output_.set(control_reset, input_reset ? 1.0 : 0.0);
+			if (input_reset) output_.set(control_error, Error::ok);
+            else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
         }
 		
         //Acting
         if (input_finished) return;
-        else if (!input_reset && input_error == error_ok && input_mode != Mode::invalid) try
+        else if (!input_reset && input_error == Error::ok && input_mode != Mode::invalid) try
         {
-		    if (input_width == input_width) driver->gripper_->move(input_width, 0.1); //Fix magic number
-            output_error = error_ok;
+		    if (input_width == input_width) gripper_->move(input_width, 0.1); //Fix magic number
+            output_error = Error::ok;
         }
         catch (franka::NetworkException &e)
         {
-            output_error = error_gripper_network_exception;
+            output_error = Error::gripper_network_exception;
         }
         catch (franka::InvalidOperationException)
         {
-            output_error = error_gripper_invalid_operation_exception;
+            output_error = Error::gripper_invalid_operation_exception;
         }
         catch (...)
         {
-            output_error = error_gripper_invalid_operation_exception;
+            output_error = Error::gripper_invalid_operation_exception;
         }
     }
 }
@@ -391,18 +551,18 @@ void franka_o80::Driver::start()
     franka::RobotState robot_state = robot_->readOnce();
     for (size_t i = 0; i < 7; i++)
     {
-        output_.set(robot_positions[i], robot_state.q[i]);
-        output_.set(robot_velocities[i], robot_state.dq[i]);
-        output_.set(robot_torques[i], robot_state.tau_J[i]);
+        output_.set(joint_position[i], robot_state.q[i]);
+        output_.set(joint_velocity[i], robot_state.dq[i]);
+        output_.set(joint_torque[i], robot_state.tau_J[i]);
     }
-    robot_control_thread_ = std::thread(robot_control_function_, this);
+    robot_control_thread_ = std::thread([](Driver *driver) -> void { driver->robot_control_function_(); }, this);
 
     //Starting gripper
     gripper_ = std::unique_ptr<franka::Gripper>(new franka::Gripper(ip_));
 	franka::GripperState gripper_state = gripper_->readOnce();
     output_.set(gripper_width, gripper_state.width);
     output_.set(gripper_temperature, gripper_state.temperature);
-    gripper_control_thread_ = std::thread(gripper_control_function_, this);
+    gripper_control_thread_ = std::thread([](Driver *driver) -> void { driver->gripper_control_function_(); }, this);
 }
 
 void franka_o80::Driver::set(const DriverInput &input)
@@ -427,7 +587,7 @@ void franka_o80::Driver::stop()
 {
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
-        finished_ = true;
+        input_finished_ = true;
     }
     robot_control_thread_.join();
     gripper_control_thread_.join();

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "constants.hpp"
+#include "queue.hpp"
+#include "actuator.hpp"
 #include "state.hpp"
 #include <o80/state.hpp>
 #include <o80/front_end.hpp>

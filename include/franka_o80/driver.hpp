@@ -1,12 +1,13 @@
 #pragma once
 
-#include "constants.hpp"
-#include "indexes.hpp"
-#include "errors.hpp"
+#include "limits.hpp"
+#include "actuator.hpp"
+#include "error.hpp"
 #include "driver_input.hpp"
 #include "driver_output.hpp"
 #ifndef FRANKA_O80_TEST
     #include <franka/robot.h>
+    #include <franka/model.h>
     #include <franka/gripper.h>
     #include <franka/exception.h>
 #else
@@ -17,6 +18,8 @@
 #include <memory>
 #include <thread>
 #include <mutex>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 namespace franka_o80
 {
@@ -24,34 +27,31 @@ namespace franka_o80
 class Driver : public o80::Driver<DriverInput, DriverOutput>
 {
 private:
-	enum class Mode
-	{
-		invalid,
-		positions,
-		velocities,
-		torques,
-		positions_torques,
-		velocities_torques
-	};
-	
     bool started_ = false;
     std::string ip_;
     std::unique_ptr<franka::Robot> robot_;
+    std::unique_ptr<franka::Model> model_;
     std::thread robot_control_thread_;
     std::unique_ptr<franka::Gripper> gripper_;
     std::thread gripper_control_thread_;
 	Mode mode_ = Mode::invalid;
 	DriverInput input_;
     DriverOutput output_;
-    bool finished_ = false;
+    bool input_finished_ = false;
 	std::mutex input_output_mutex_;
+    Eigen::Matrix<double, 7, 7> joint_stiffness_, joint_damping_;
+    Eigen::Matrix<double, 6, 6> cartesian_stiffness_, cartesian_damping_;
 
-	static Mode get_mode(double positions, double velocities, double torques);
-	static double get_control_position(Mode mode);
-	static double get_control_velocity(Mode mode);
-	static double get_control_torque(Mode mode);
-    static void robot_control_function_(Driver *driver);
-    static void gripper_control_function_(Driver *driver);
+    void robot_write_output_(const franka::RobotState &robot_state);
+    void robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);
+    void robot_torque_control_function_(const franka::RobotState &robot_state, franka::Torques *torques);
+	void robot_position_control_function_(const franka::RobotState &robot_state, franka::JointPositions *positions);
+    void robot_velocity_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);
+    void robot_cartesian_position_control_function_(const franka::RobotState &robot_state, franka::CartesianPose *cartesian_position);
+    void robot_cartesian_velocity_control_function_(const franka::RobotState &robot_state, franka::CartesianVelocities *cartesian_velocity);
+
+    void robot_control_function_();
+    void gripper_control_function_();
 
 public:
     ///Creates Driver for robot (arm) and hand (gripper) on specified IP address

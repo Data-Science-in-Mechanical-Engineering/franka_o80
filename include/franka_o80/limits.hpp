@@ -20,8 +20,4 @@ static const double robot_torques_max[7] = { 87, 87, 87, 87, 12, 12, 12 };
 ///Robot maximal derivaties of torques for each joint
 static const double robot_dtorques_max[7] = { 1000, 1000, 1000, 1000, 1000, 1000, 1000 };
 
-///Actuator number
-static const int actuator_number = 28;
-///Command queue size
-static const int queue_size = 40000;
 }  // namespace franka_o80

@@ -1,8 +1,7 @@
 #pragma once
 
 #include "state.hpp"
-#include "constants.hpp"
-#include "indexes.hpp"
+#include "actuator.hpp"
 #include <o80/states.hpp>
 #include <string>
 

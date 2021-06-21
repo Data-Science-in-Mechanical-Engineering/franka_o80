@@ -1,17 +1,28 @@
 #include <o80/pybind11_helper.hpp>
-#include "../include/franka_o80/cartesial_states.hpp"
+#include "../include/franka_o80/kinematics.hpp"
 #include "../include/franka_o80/standalone.hpp"
-#include "../include/franka_o80/constants.hpp"
-#include "../include/franka_o80/errors.hpp"
-#include "../include/franka_o80/indexes.hpp"
+#include "../include/franka_o80/limits.hpp"
+#include "../include/franka_o80/error.hpp"
+#include "../include/franka_o80/actuator.hpp"
 #include <stdexcept>
 
 PYBIND11_MODULE(franka_o80, m)
 {
-    o80::create_python_bindings<franka_o80::Standalone>(m);
+    o80::create_python_bindings<franka_o80::Standalone, o80::NO_STATE>(m);
     o80::create_standalone_python_bindings<franka_o80::Driver, franka_o80::Standalone, std::string>(m);
+    //state.hpp
+    pybind11::class_<franka_o80::State>(m, "State")
+        .def(pybind11::init<>())
+        .def(pybind11::init<double>())
+        .def(pybind11::init<franka_o80::Mode>())
+        .def(pybind11::init<franka_o80::Error>())
+        .def("get", &franka_o80::State::get)
+        .def("set", pybind11::overload_cast<double>(&franka_o80::State::set))
+        .def("set", pybind11::overload_cast<franka_o80::Mode>(&franka_o80::State::set))
+        .def("set", pybind11::overload_cast<franka_o80::Error>(&franka_o80::State::set))
+        .def("to_string", &franka_o80::State::to_string);
 
-    //constants.hpp
+    //limits.hpp
     m.attr("robot_positions_min")       = franka_o80::robot_positions_min;
     m.attr("robot_positions_max")       = franka_o80::robot_positions_max;
     m.attr("robot_velocities_max")      = franka_o80::robot_velocities_max;
@@ -22,42 +33,54 @@ PYBIND11_MODULE(franka_o80, m)
     m.attr("actuator_number")           = franka_o80::actuator_number;
     m.attr("queue_size")                = franka_o80::queue_size;
 
-    //errors.hpp
-    m.attr("error_ok")                                  = franka_o80::error_ok;
-    m.attr("error_robot_command_exception")             = franka_o80::error_robot_command_exception;
-    m.attr("error_robot_control_exception")             = franka_o80::error_robot_control_exception;
-    m.attr("error_robot_invalid_operation_exception")   = franka_o80::error_robot_invalid_operation_exception;
-    m.attr("error_robot_network_exception")             = franka_o80::error_robot_network_exception;
-    m.attr("error_robot_realtime_exception")            = franka_o80::error_robot_realtime_exception;
-    m.attr("error_robot_invalid_argument_exception")    = franka_o80::error_robot_invalid_argument_exception;
-    m.attr("error_robot_other_exception")               = franka_o80::error_robot_other_exception;
-    m.attr("error_gripper_command_exception")           = franka_o80::error_gripper_command_exception;
-    m.attr("error_gripper_network_exception")           = franka_o80::error_gripper_network_exception;
-    m.attr("error_gripper_invalid_operation_exception") = franka_o80::error_gripper_invalid_operation_exception;
-    m.attr("error_gripper_other_exception")             = franka_o80::error_gripper_other_exception;
+    //mode.hpp
+    pybind11::enum_<franka_o80::Mode>(m, "Mode")
+    .value("invalid", franka_o80::Mode::invalid)
+    .value("torque", franka_o80::Mode::torque)
+    .value("torque_position", franka_o80::Mode::torque_position)
+	.value("torque_velocity", franka_o80::Mode::torque_velocity)
+	.value("torque_cartesian_position", franka_o80::Mode::torque_cartesian_position)
+	.value("torque_cartesian_velocity", franka_o80::Mode::torque_cartesian_velocity)
+	.value("position", franka_o80::Mode::position)
+	.value("velocity", franka_o80::Mode::velocity)
+	.value("cartesian_position", franka_o80::Mode::cartesian_position)
+	.value("cartesian_velocity", franka_o80::Mode::cartesian_velocity)
+	.value("intelligent_position", franka_o80::Mode::intelligent_position)
+	.value("intelligent_cartesian_position", franka_o80::Mode::intelligent_cartesian_position)
+    .export_values();
 
-    //indexes.hpp
-    m.attr("control_positions")     = franka_o80::control_positions;
-    m.attr("control_velocities")    = franka_o80::control_velocities;
-    m.attr("control_torques")       = franka_o80::control_torques;
+    //error.hpp
+    pybind11::enum_<franka_o80::Error>(m, "Error")
+    .value("ok", franka_o80::Error::ok)
+    .value("robot_command_exception", franka_o80::Error::robot_command_exception)
+    .value("robot_control_exception", franka_o80::Error::robot_control_exception)
+    .value("robot_invalid_operation_exception", franka_o80::Error::robot_invalid_operation_exception)
+    .value("robot_network_exception", franka_o80::Error::robot_network_exception)
+    .value("robot_realtime_exception", franka_o80::Error::robot_realtime_exception)
+    .value("robot_invalid_argument_exception", franka_o80::Error::robot_invalid_argument_exception)
+    .value("robot_other_exception", franka_o80::Error::robot_other_exception)
+    .value("gripper_command_exception", franka_o80::Error::gripper_command_exception)
+    .value("gripper_network_exception", franka_o80::Error::gripper_network_exception)
+    .value("gripper_invalid_operation_exception", franka_o80::Error::gripper_invalid_operation_exception)
+    .value("gripper_other_exception", franka_o80::Error::gripper_other_exception)
+    .export_values();
+
+    //actuator.hpp
+    m.attr("control_mode")          = franka_o80::control_mode;
     m.attr("control_error")         = franka_o80::control_error;
     m.attr("control_reset")         = franka_o80::control_reset;
     m.attr("gripper_width")         = franka_o80::gripper_width;
     m.attr("gripper_temperature")   = franka_o80::gripper_temperature;
-    m.def("robot_positions",        [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::robot_positions[i]; });
-    m.def("robot_velocities",       [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::robot_velocities[i]; });
-    m.def("robot_torques",          [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::robot_torques[i]; });
-    m.def("cartesial_positions",    [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesial_positions[i]; });
-    m.def("cartesial_velocities",   [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesial_velocities[i]; });
-    m.def("cartesial_forces",       [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesial_forces[i]; });
+    m.def("joint_position",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_position[i]; });
+    m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_velocity[i]; });
+    m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_torque[i]; });
+    m.def("cartesian_position",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_position[i]; });
+    m.def("cartesian_orientation",  [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_orientation[i]; });
+    m.def("cartesian_velocity",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_velocity[i]; });
+    m.def("cartesian_rotation",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_rotation[i]; });
 
-    //cartesial_.hpp
-    pybind11::class_<franka_o80::CartesialStates>(m, "CartesialStates")
-        .def(pybind11::init<>())
-        .def("set", &franka_o80::CartesialStates::set)
-        .def("get", &franka_o80::CartesialStates::get)
-        .def_readwrite("values", &franka_o80::CartesialStates::values);
-    m.def("to_cartesial", &franka_o80::to_cartesial);
-    m.def("to_joint", pybind11::overload_cast<const franka_o80::CartesialStates&, double>(&franka_o80::to_joint));
-    m.def("to_joint", pybind11::overload_cast<const franka_o80::CartesialStates&, const franka_o80::States&, double>(&franka_o80::to_joint));
+    //kinematics.hpp
+    m.def("joint_to_cartesian", &franka_o80::joint_to_cartesian);
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&>(&franka_o80::cartesian_to_joint));
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, const franka_o80::States&>(&franka_o80::cartesian_to_joint));
 }

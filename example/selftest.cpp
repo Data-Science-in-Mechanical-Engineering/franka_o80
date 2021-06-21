@@ -1,9 +1,8 @@
-#include "../include/franka_o80/cartesial_states.hpp"
+#include "../include/franka_o80/kinematics.hpp"
 #include "../include/franka_o80/front_end.hpp"
 #include "../include/franka_o80/standalone.hpp"
-#include "../include/franka_o80/indexes.hpp"
-#include "../include/franka_o80/constants.hpp"
-#include "../include/franka_o80/errors.hpp"
+#include "../include/franka_o80/actuator.hpp"
+#include "../include/franka_o80/error.hpp"
 #include "../include/franka_o80/states.hpp"
 
 #include <gtest/gtest.h>
@@ -116,33 +115,28 @@ TEST(RobotTest, BadPositionControl)
 }
 */
 
-TEST(CartesialTest, Forward)
+TEST(KinematicsTest, Forward)
 {
     franka_o80::States states = franka_o80::default_states();
-    franka_o80::CartesialStates cartesial;
-    EXPECT_NO_THROW(cartesial = franka_o80::to_cartesial(states));
-    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[0]], 0.30702, 0.001);
-    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[1]], 0.0, 0.001);
-    EXPECT_NEAR(cartesial.values[franka_o80::cartesial_positions[2]], 0.49727, 0.001);
+    EXPECT_NO_THROW(franka_o80::joint_to_cartesian(states));
+    EXPECT_NEAR(states.get(franka_o80::cartesian_position[0]), 0.30702, 0.001);
+    EXPECT_NEAR(states.get(franka_o80::cartesian_position[1]), 0.0,     0.001);
+    EXPECT_NEAR(states.get(franka_o80::cartesian_position[2]), 0.49727, 0.001);
 }
 
-TEST(CartesialTest, Inverse)
+TEST(KinematicsTest, Inverse)
 {
-    franka_o80::CartesialStates cartesial;
-    cartesial.values[franka_o80::cartesial_positions[0]] = 0.30702;
-    cartesial.values[franka_o80::cartesial_positions[1]] = 0.0;
-    cartesial.values[franka_o80::cartesial_positions[2]] = 0.49727;
-    cartesial.values[franka_o80::cartesial_forward[0]] = 0.0;
-    cartesial.values[franka_o80::cartesial_forward[1]] = 0.0;
-    cartesial.values[franka_o80::cartesial_forward[2]] = -1.0;
-    cartesial.values[franka_o80::cartesial_right[0]] = 0.0;
-    cartesial.values[franka_o80::cartesial_right[1]] = -1.0;
-    cartesial.values[franka_o80::cartesial_right[2]] = 0.0;
     franka_o80::States states;
-    EXPECT_NO_THROW(states = franka_o80::to_joint(cartesial));
+    states.values[franka_o80::cartesian_position[0]] = 0.30702;
+    states.values[franka_o80::cartesian_position[1]] = 0.0;
+    states.values[franka_o80::cartesian_position[2]] = 0.49727;
+    states.values[franka_o80::cartesian_orientation[0]] = 0.0;
+    states.values[franka_o80::cartesian_orientation[1]] = 0.0;
+    states.values[franka_o80::cartesian_orientation[2]] = 0.0;
+    EXPECT_NO_THROW(franka_o80::cartesian_to_joint(states));
     for (size_t i = 0; i < 7; i++)
     {
-        EXPECT_NEAR(franka_o80::default_states().values[franka_o80::robot_positions[i]], states.values[franka_o80::robot_positions[i]], 0.001);
+        EXPECT_NEAR(franka_o80::default_states().get(franka_o80::joint_position[i]), states.get(franka_o80::joint_position[i]), 0.001);
     }
 }
 

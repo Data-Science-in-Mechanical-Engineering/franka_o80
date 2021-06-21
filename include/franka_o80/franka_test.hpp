@@ -1,7 +1,7 @@
 #pragma once
 
-#include "constants.hpp"
-#include "indexes.hpp"
+#include "limits.hpp"
+#include "actuator.hpp"
 #include "states.hpp"
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <stdexcept>

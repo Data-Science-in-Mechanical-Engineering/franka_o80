@@ -1,6 +1,7 @@
 #pragma once
 
-#include "constants.hpp"
+#include "mode.hpp"
+#include "error.hpp"
 #include <stdexcept>
 #include <string>
 #include <limits>
@@ -8,26 +9,59 @@
 
 namespace franka_o80
 {
-///Actuator state. Because of `o80` restrictions, many other values, like control signals or errors, are also represented as actuators
+///Actuator state. Because of `o80` restrictions many other values, like control modes or errors, are also represented as actuators. Dynamic typazation is done here
 class State
 {
 public:
+    ///Type of state
+    enum class Type
+    {
+        real,
+        mode,
+        error
+    };
+
+private:
+    Type typ_;
+
+public:
     ///Value of state
     double value;
-    ///Creates state with zero value
+    
+    ///Creates state with zero real value
 	State();
-	///Creates state with given value
+	///Creates state with given real value
 	State(double value);
+    ///Creates state with given mode value
+	State(Mode value);
+    ///Creates state with given error value
+	State(Error value);
 	///Copies state
 	State(const State &state);
-	///Sets state's value to given value
+	
+    ///Sets state's value to real value
 	void set(double value);
-	///Returns value of state
+    ///Sets state's value to mode value
+	void set(Mode value);
+    ///Sets state's value to mode value
+	void set(Error value);
+    
+    ///Returns state's type
+    Type get_type();
+	///Returns real value of state
 	double get() const;
-	///Returns string representation of state
-	std::string to_string() const;
+    ///Returns mode value of state
+	Mode get_mode() const;
+    ///Returns value of state
+	Error get_error() const;
 	///Transforms state to `double`
 	operator double() const;
+    ///Transforms state to `Mode`
+	operator Mode() const;
+    ///Transforms state to `Error`
+	operator Error() const;
+    ///Returns string representation of state
+	std::string to_string() const;
 
 	///Returns if target state is reached
 	static bool finished(const o80::TimePoint &start,
@@ -64,17 +98,25 @@ public:
 	///Serializes state
 	template <class Archive> void serialize(Archive &archive)
     {
+        archive(typ_);
 		archive(value);
     }
 };
 
-
 bool operator==(State a, State b);  ///<Compares states
-bool operator==(double a, State b); ///<Compares states
-bool operator==(State a, double b); ///<Compares states
+bool operator==(double a, State b); ///<Compares state and real
+bool operator==(State a, double b); ///<Compares state and real
+bool operator==(Mode a, State b);   ///<Compares state and mode
+bool operator==(State a, Mode b);   ///<Compares state and mode
+bool operator==(Error a, State b);  ///<Compares state and error
+bool operator==(State a, Error b);  ///<Compares state and error
 bool operator!=(State a, State b);  ///<Compares states
-bool operator!=(double a, State b); ///<Compares states
-bool operator!=(State a, double b); ///<Compares states
+bool operator!=(double a, State b); ///<Compares state and real
+bool operator!=(State a, double b); ///<Compares state and real
+bool operator!=(Mode a, State b);   ///<Compares state and mode
+bool operator!=(State a, Mode b);   ///<Compares state and mode
+bool operator!=(Error a, State b);  ///<Compares state and error
+bool operator!=(State a, Error b);  ///<Compares state and error
 bool operator<(State a, State b);   ///<Compares states
 bool operator<(double a, State b);  ///<Compares states
 bool operator<(State a, double b);  ///<Compares states
