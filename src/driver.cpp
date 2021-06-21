@@ -555,6 +555,7 @@ void franka_o80::Driver::start()
 
     //Starting robot
     robot_ = std::unique_ptr<franka::Robot>(new franka::Robot(ip_));
+    model_ = std::unique_ptr<franka::Model>(new franka::Model(robot_->loadModel()));
     robot_->setCollisionBehavior(
       {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
       {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}},
