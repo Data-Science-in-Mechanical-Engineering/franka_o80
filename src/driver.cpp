@@ -539,6 +539,19 @@ void franka_o80::Driver::start()
     if (started_) return;
     started_ = true;
 
+    //Initialize values
+    const double translational_stiffness = 150.0;
+    const double rotational_stiffness = 10.0;
+    cartesian_stiffness_.setZero();
+    cartesian_stiffness_.topLeftCorner(3, 3) << translational_stiffness * Eigen::Matrix<double, 3, 3>::Identity();
+    cartesian_stiffness_.bottomRightCorner(3, 3) << rotational_stiffness * Eigen::Matrix<double, 3, 3>::Identity();
+    cartesian_damping_.setZero();
+    cartesian_damping_.topLeftCorner(3, 3) << 2.0 * sqrt(translational_stiffness) * Eigen::Matrix<double, 3, 3>::Identity();
+    cartesian_damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness) * Eigen::Matrix<double, 3, 3>::Identity();
+    joint_stiffness_.setZero();
+    joint_stiffness_.diagonal() << 600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0;
+    joint_damping_.diagonal() << 50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0;
+
     //Starting robot
     robot_ = std::unique_ptr<franka::Robot>(new franka::Robot(ip_));
     robot_->setCollisionBehavior(
