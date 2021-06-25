@@ -11,13 +11,17 @@
 
 namespace franka_o80
 {
-///Transforms joint state to cartesian state
+///Transforms joint state (`joint_position`) to cartesian state (`cartesian_position` and `cartesian_orientation`)
+///@param states States to transform
 void joint_to_cartesian(States &states);
 
-///Transforms cartesian state to joint state
+///Transforms cartesian state (`cartesian_position` and `cartesian_orientation`) to joint state (`joint_position`)
+///@param states States to transform
 void cartesian_to_joint(States &states);
 
-///Transforms cartesian state to joint state
+///Transforms cartesian state (`cartesian_position` and `cartesian_orientation`) to joint state (`joint_position`)
+///@param states States to transform
+///@param hint States which joint states will be taken as initial guess
 void cartesian_to_joint(States &states, const States &hint);
 
 ///Forward and inverse kinematics information

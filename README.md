@@ -1,41 +1,57 @@
-﻿# Welcome to `franka_arm_api`
+﻿# Welcome to `franka_o80`
 Here you will find an [o80](https://github.com/intelligent-soft-robots/o80) `C++` and `Python` wrappers around [libfranka](https://github.com/frankaemika/libfranka).
 
-# Structure
-Like every other [o80](https://github.com/intelligent-soft-robots/o80) project, `franka_arm_api` consists of frontend and backend. Both of them run on the same computer and communicate via shared memory.
+### Contents
+1. [Welcome to franka_o80](#welcome-to-franka_o80)
+2. [Contents](#contents)
+3. [Structure](#structure)
+4. [Usage](#usage)
+4. [Dependencies](#dependencies)
+5. [Installation](#installation)
+6. [Documentation](#documentation)
 
-Frontend (`o80::Frontend` class) is used by programmer, it basically sends and receives data from backend.
-
-Backend (`o80::Backend`/`o80::Standalone` class) communicates with [libfranka](https://github.com/frankaemika/libfranka) and the robot itself, and needs to be created in order to use frontends.
-
-Use same `segment_id` on frontend and backend to "connect" them.
-
+### Structure
 Some files and directories you may need to know about:
  - `include` - include directory for `C++` programmers
  - `src` - directory containing `C++` sources
- - `example` - directory containing finished `franka_arm_api` projects in form of `C++` sources or `Python` files
- - `build` - `cmake` build directory, will contain binary files
- - `build/franka_o80_base.so` - shared library for `C++` programmers
+ - `example` - directory containing finished `franka_o80` projects in form of `C++` sources or `Python` files
+ - `build` - `cmake` build directory
+ - `build/franka_o80_cpp.so` - shared library for `C++` programmers (could be linked with `-lfranka_o80_cpp`)
  - `build/franka_o80.so` - shared library for `Python` programmers (could be imported with `import franka_o80`)
- - `build/franka_o80_backend` - backend in form of executable, see it's "help"
- - `example/backend.py` - backend in form of python file
- - `example/backend_graph.py` - backend and fronend with pretty graphics
+ - `build/franka_o80_test_*` - dummy libraries for testing purposes
+ - `build/example/franka_o80_backend` - executable for starting backend
+ - `build/example/franka_o80_control` - application for basic robot control
+ - `build/example/franka_o80_selftest` - [Google Test](https://github.com/google/googletest) testing of the library
 
-# Dependencies
-`franka_arm_api` depends on [o80](https://github.com/intelligent-soft-robots/o80) and [libfranka](https://github.com/frankaemika/libfranka).
+### Usage
+[o80](https://github.com/intelligent-soft-robots/o80) may be sometimes not intuitive, and `franka_o80` inherits it’s flaws.
 
-`example/backend_graph.py` also needs `fyplot`, and `fyplot` needs `PyQt5` and `pyqtgraph` that are not automatically installed.
+The project consists of frontend and backend. Frontend (`o80::Frontend` class) is used by programmer in `C++` or `Python`. It is responsible for sending commands and receiving observations from backend.
 
-Also currently [fork of o80](https://github.com/Meta-chan/o80) should be used instead of [original o80](https://github.com/intelligent-soft-robots/o80) in order to have pretty `CMake` builing process.
+Backend (`o80::Backend` and `o80::Standalone` classes) is written in `C++` and does not need to be changed. It is responsible for communication with the [libfranka](https://github.com/frankaemika/libfranka) and needs to be started on the same machine in order to use frontends.
 
-# Installation
+All variables in `franka_o80` are represented as actuators in terms of [o80](https://github.com/intelligent-soft-robots/o80), even control mode, reset, error, velocities, torques, etc., so they are set with `add_command` as all other actuators. When reading observations, all actuators are defined. But some actuators (like `joint_position` and `cartesial_position`) obviously contradict each other, which of them will be used to control the robot, is decided by mode.  Non-intelligent modes directly correspond to `Robot::control` overloaded functions in [libfranka](https://github.com/frankaemika/libfranka). Intelligent modes are implemented with `Robot::control(std::function<Torques(RobotState)>)` function.
+
+### Dependencies
+`franka_o80` depends on:
+ - [o80](https://github.com/intelligent-soft-robots/o80)
+ - [libfranka](https://github.com/frankaemika/libfranka) (as part of ROS)
+ - [pinocchio](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html) (as part of ROS)
+ - [Eigen](https://eigen.tuxfamily.org)
+ - [Boost](https://www.boost.org) (system and thread)
+ - [Google Test](https://github.com/google/googletest)
+ - [pybind11](https://github.com/pybind/pybind11) (optionally)
+ - [CMake](https://cmake.org) >= `3.10.2`
+ - Fully preemptable Linux kernel
+ - C++17 compatible compiler
+
+### Installation
 ```
 mkdir build
 cd build
-cmake .. -Dlibfranka_DIR=... -Do80_DIR=...
+cmake ..
 cmake --build .
-
 ```
 
-# Documentation
+### Documentation
 [Doxygen](https://www.doxygen.nl) documentation is provided.

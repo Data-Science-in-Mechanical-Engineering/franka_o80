@@ -10,12 +10,13 @@ namespace franka_o80
 class DriverOutput : public DriverInputOutput
 {
 public:
-    //Creates driver output
+    ///Creates driver output
     DriverOutput();
-    //Creates driver output from state
+    ///Creates driver output from state
+    ///@param states States to transform to driver output
     DriverOutput(const o80::States<actuator_number, State> &states);
     ///Prints driver output to `std::cout`
-    //@param `true` to end output with `std::endl`
+    ///@param endl `true` to end output with `std::endl`
     void print(bool endl);
     ///Returs string representation of driver output
     std::string to_string() const;

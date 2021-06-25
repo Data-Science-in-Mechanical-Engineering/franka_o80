@@ -29,9 +29,6 @@ endif()
 #pinocchio
 find_package(catkin REQUIRED COMPONENTS pinocchio)
 
-#moveit
-find_package(catkin REQUIRED COMPONENTS moveit_ros_planning_interface roscpp)
-
 #libfranka
 find_package(catkin REQUIRED COMPONENTS franka_control)
 
