@@ -38,7 +38,7 @@ void franka_o80::joint_to_cartesian(States &states)
     Eigen::Vector3d translation = se3.translation_impl() + 0.2 * forward;
 
     //Returning result
-    Eigen::Vector3d euler = rotation.eulerAngles(0, 1, 2);
+    Eigen::Vector3d euler = rotation.eulerAngles(2, 1, 0);
     for (size_t i = 0; i < 3; i++) states.set(cartesian_position[i], translation(i));
     for (size_t i = 0; i < 3; i++) states.set(cartesian_orientation[i], euler(i));
 }
@@ -61,16 +61,16 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
     Eigen::Vector3d translation;
     for (size_t i = 0; i < 3; i++) translation(i) = states.get(cartesian_position[i]);
     Eigen::Matrix3d rotation(
-        Eigen::AngleAxisd(states.get(cartesian_orientation[0]), Eigen::Vector3d::UnitX()) *
+        Eigen::AngleAxisd(states.get(cartesian_orientation[0]), Eigen::Vector3d::UnitZ()) *
         Eigen::AngleAxisd(states.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(states.get(cartesian_orientation[2]), Eigen::Vector3d::UnitZ()));
+        Eigen::AngleAxisd(states.get(cartesian_orientation[2]), Eigen::Vector3d::UnitX()));
 
     //Fix: rotating -45 degree around "forward" and translation -0.2 along "forward"
     Eigen::Vector3d forward = rotation.col(2);
     rotation = Eigen::AngleAxisd(-M_PI / 4, forward) * rotation;
     translation -= 0.2 * forward;
     const pinocchio::SE3 goal(rotation, translation);
-
+    
     //Constants
     const double tolerance   = 1e-4;
     const int max_iteration  = 1000;

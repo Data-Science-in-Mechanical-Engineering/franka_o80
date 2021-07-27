@@ -13,7 +13,7 @@ void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_sta
     //Cartesian
     Eigen::Affine3d transform(Eigen::Matrix<double, 4, 4>::Map(robot_state.O_T_EE.data()));
     Eigen::Vector3d position = transform.translation();
-    Eigen::Vector3d orientation = transform.linear().eulerAngles(0, 1, 2);
+    Eigen::Vector3d orientation = transform.linear().eulerAngles(2, 1, 0);
     Eigen::Matrix<double, 6, 7> jacobian = Eigen::Matrix<double, 6, 7>::Map(model_->zeroJacobian(franka::Frame::kEndEffector, robot_state).data());
     Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
     Eigen::Matrix<double, 6, 1> velocity = jacobian * joint_velocities;
@@ -26,7 +26,7 @@ void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_sta
     }
 }
 
-void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *positions)
+void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities)
 {
     //Locking
     std::lock_guard<std::mutex> guard(input_output_mutex_);
@@ -42,7 +42,7 @@ void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState 
     {
         output_.set(control_mode, Mode::invalid);
         mode_ = input_mode;
-        positions->motion_finished = true;
+        velocities->motion_finished = true;
     }
     //Normal
     else
@@ -60,7 +60,7 @@ void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState 
 void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState &robot_state, franka::Torques *torques)
 {
     std::lock_guard<std::mutex> guard(input_output_mutex_);
-        
+
     //Reading input
     bool input_reset = input_.get(control_reset) > 0.0;
     Mode input_mode = input_.get(control_mode);
@@ -70,7 +70,7 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
     bool switching_mode = input_mode != mode_ && !
     ((mode_ == Mode::torque || mode_ == Mode::intelligent_position || mode_ == Mode::intelligent_cartesian_position) &&
     (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position));
-    
+
     //Exit
     if (switching_mode || input_finished || input_error != Error::ok || input_reset)
     {
@@ -110,10 +110,10 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
         //Reading input
         Eigen::Matrix<double, 3, 1> input_target_position;
         for (size_t i = 0; i < 3; i++) input_target_position(i) = input_.get(cartesian_position[0]);
-        Eigen::Quaterniond input_target_orientation = 
-            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitX()) *
+        Eigen::Quaterniond input_target_orientation =
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitZ()) *
             Eigen::AngleAxisd(input_.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitZ());
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitX());
 
         //Calculating torque
         Eigen::Matrix<double, 7, 1> joint_velocities = Eigen::Matrix<double, 7, 1>::Map(robot_state.dq.data());
@@ -238,11 +238,13 @@ void franka_o80::Driver::robot_cartesian_position_control_function_(const franka
     {
         mode_ = input_mode;
         output_.set(control_mode, mode_);
-        Eigen::Affine3d transform =
-            Eigen::Translation3d(input_.get(cartesian_position[0]), input_.get(cartesian_position[1]), input_.get(cartesian_position[2])) *
-            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitZ()) *
+        Eigen::Affine3d transform;
+        transform.translation() = Eigen::Vector3d(input_.get(cartesian_position[0]), input_.get(cartesian_position[1]), input_.get(cartesian_position[2]));
+        transform.linear() = (
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitZ()) *
             Eigen::AngleAxisd(input_.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(input_.get(cartesian_orientation[0]), Eigen::Vector3d::UnitX());
+            Eigen::AngleAxisd(input_.get(cartesian_orientation[2]), Eigen::Vector3d::UnitX())
+        ).toRotationMatrix();
         Eigen::Matrix<double, 4, 4>::Map(&positions->O_T_EE[0]) = transform.matrix();
         positions->elbow[0] = input_.get(joint_position[2]);
         positions->elbow[1] = input_.get(joint_position[3]) > 0.0 ? 1.0 : -1.0;
@@ -322,99 +324,99 @@ void franka_o80::Driver::robot_control_function_()
         {
             if (input_finished) return;
             else if (input_reset) robot_->automaticErrorRecovery();
-            
+
             Driver *driver = this;
             if (input_reset || input_error != Error::ok || output_error != Error::ok || input_mode == Mode::invalid) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
-                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_dummy_control_function_(robot_state, &velocities);
                     return velocities;
                 });
             else if (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
-                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 });
             else if (input_mode == Mode::torque_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
-                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 },
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointPositions
                 {
-                    franka::JointPositions positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::JointPositions positions(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_position_control_function_(robot_state, &positions);
                     return positions;
                 });
             else if (input_mode == Mode::torque_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
-                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 },
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
-                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_velocity_control_function_(robot_state, &velocities);
                     return velocities;
                 });
             else if (input_mode == Mode::torque_cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
-                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 },
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianPose
                 {
-                    franka::CartesianPose cartesian_position{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::CartesianPose cartesian_position(std::array<double, 16>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
                     driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
                     return cartesian_position;
                 });
             else if (input_mode == Mode::torque_cartesian_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
-                    franka::Torques torques{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 },
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianVelocities
                 {
-                    franka::CartesianVelocities cartesian_velocity{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::CartesianVelocities cartesian_velocity(std::array<double, 6>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
                     driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
                     return cartesian_velocity;
                 });
             else if (input_mode == Mode::position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointPositions
                 {
-                    franka::JointPositions positions{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::JointPositions positions(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_position_control_function_(robot_state, &positions);
                     return positions;
                 });
             else if (input_mode == Mode::velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
-                    franka::JointVelocities velocities{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_velocity_control_function_(robot_state, &velocities);
                     return velocities;
                 });
             else if (input_mode == Mode::cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianPose
                 {
-                    franka::CartesianPose cartesian_position{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::CartesianPose cartesian_position(std::array<double, 16>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
                     driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
                     return cartesian_position;
                 });
             else if (input_mode == Mode::cartesian_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianVelocities
                 {
-                    franka::CartesianVelocities cartesian_velocity{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                    franka::CartesianVelocities cartesian_velocity(std::array<double, 6>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
                     driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
                     return cartesian_velocity;
                 });
@@ -556,6 +558,7 @@ void franka_o80::Driver::start()
     //Starting robot
     robot_ = std::unique_ptr<franka::Robot>(new franka::Robot(ip_));
     model_ = std::unique_ptr<franka::Model>(new franka::Model(robot_->loadModel()));
+    robot_->automaticErrorRecovery();
     robot_->setCollisionBehavior(
       {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
       {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}},
@@ -600,10 +603,13 @@ franka_o80::DriverOutput franka_o80::Driver::get()
 
 void franka_o80::Driver::stop()
 {
+    if (!started_) return;
+    started_ = false;
+
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
         input_finished_ = true;
     }
-    robot_control_thread_.join();
-    gripper_control_thread_.join();
+    if (robot_control_thread_.joinable()) robot_control_thread_.join();
+    if (gripper_control_thread_.joinable()) gripper_control_thread_.join();
 }

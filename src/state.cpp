@@ -16,7 +16,7 @@ franka_o80::State::State(Error error) : typ_(Type::error), value(static_cast<dou
 {
 }
 
-franka_o80::State::State(const State &state) : value(state.value)
+franka_o80::State::State(const State &state) : typ_(state.typ_), value(state.value)
 {
 }
 
@@ -55,13 +55,13 @@ double franka_o80::State::get() const
 
 franka_o80::Mode franka_o80::State::get_mode() const
 {
-    if (typ_ != Type::mode) throw std::runtime_error("franka_o80: State type error");
+    if (typ_ != Type::mode) return Mode::invalid;
     return static_cast<Mode>(value);
 }
 
 franka_o80::Error franka_o80::State::get_error() const
 {
-    if (typ_ != Type::error) throw std::runtime_error("franka_o80: State type error");
+    if (typ_ != Type::error) return Error::ok;
     return static_cast<Error>(value);
 }
 
@@ -189,12 +189,16 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
     if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
     else if (start_state.typ_ == Type::error)
     {
-        if (start_state.value == target_state.value) return start_state;
-        else return Error::robot_other_exception;
+        if (start_state.value == target_state.value ||
+            (target_state.value > start_state.value && start_state.value + speed.value * o80::time_diff_us(start, now) > target_state) ||
+            (target_state.value < start_state.value && start_state.value - speed.value * o80::time_diff_us(start, now) < target_state)) return target_state;
+        else return Error::ok;
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value) return start_state;
+        if (start_state.value == target_state.value ||
+            (target_state.value > start_state.value && start_state.value + speed.value * o80::time_diff_us(start, now) > target_state) ||
+            (target_state.value < start_state.value && start_state.value - speed.value * o80::time_diff_us(start, now) < target_state)) return target_state;
         else return Mode::invalid;
     }
     else return State(o80::intermediate_state(start, now, start_state.value, current_state.value, target_state.value, speed));
@@ -211,12 +215,12 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
     if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
     else if (start_state.typ_ == Type::error)
     {
-        if (start_state.value == target_state.value) return start_state;
-        else return Error::robot_other_exception;
+        if (start_state.value == target_state.value || o80::time_diff_us(start, now) > duration.value) return target_state;
+        else return Error::ok;
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value) return start_state;
+        if (start_state.value == target_state.value || o80::time_diff_us(start, now) > duration.value) return target_state;
         else return Mode::invalid;
     }
     else return State(o80::intermediate_state(start, now, start_state.value, current_state.value, target_state.value, duration));
@@ -233,12 +237,12 @@ franka_o80::State franka_o80::State::intermediate_state(long int start_iteration
     if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
     else if (start_state.typ_ == Type::error)
     {
-        if (start_state.value == target_state.value) return start_state;
-        else return Error::robot_other_exception;
+        if (start_state.value == target_state.value || current_iteration >= iteration.value) return target_state;
+        else return Error::ok;
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value) return start_state;
+        if (start_state.value == target_state.value || current_iteration >= iteration.value) return target_state;
         else return Mode::invalid;
     }
     else return State(o80::intermediate_state(start_iteration, current_iteration, start_state.value, current_state.value, target_state.value, iteration));
