@@ -2,11 +2,26 @@
 #include "../include/franka_o80/front_end.hpp"
 #include "../include/franka_o80/standalone.hpp"
 #include "../include/franka_o80/actuator.hpp"
+#include <memory>
+#include <string>
 #include <string.h>
 
-double execution_time = 1.0;
+class Control
+{
+private:
+    std::unique_ptr<franka_o80::FrontEnd> front_;
+    double execution_time_;
+    bool quit_request_;
 
-void help()
+public:
+    static void help();
+    Control(std::string id);
+    void echo();
+    void execute(std::string input);
+    void loop();
+};
+
+void Control::help()
 {
     std::cout << "Welcome to franka_o80 control!"                                     << std::endl;
 	std::cout << "The program is created to control backends"                         << std::endl;
@@ -16,8 +31,7 @@ void help()
     std::cout << "Where:"                                                             << std::endl;
     std::cout << "ID is backend identifier"                                           << std::endl;
     std::cout << std::endl;
-    std::cout << "Control loop syntax: command / command sign v / command x y z"      << std::endl;
-    std::cout << "Possible signs:    + - ="                                           << std::endl;
+    std::cout << "Control loop syntax: [command [+/-/= value]]+ [# comment]"          << std::endl;
     std::cout << "Possible commands: 1..7     - joints 1..7"                          << std::endl;
     std::cout << "                   x, y, z  - X, Y and Z coordinates"               << std::endl;
     std::cout << "                   u, v, w  - Roll, pitch, yaw Euler angles"        << std::endl;
@@ -27,10 +41,19 @@ void help()
     std::cout << "                   q        - quit"                                 << std::endl;
 }
 
-void echo(franka_o80::FrontEnd *front)
+Control::Control(std::string id)
 {
-    front->reset_next_index();
-    franka_o80::States states = front->wait_for_next().get_observed_states();
+	front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
+    front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Duration_us::seconds(1.0), o80::Mode::QUEUE);
+    front_->pulse_and_wait();
+    execution_time_ = 5.0;
+    quit_request_ = false;
+}
+
+void Control::echo()
+{
+    front_->reset_next_index();
+    franka_o80::States states = front_->wait_for_next().get_observed_states();
     
     std::cout << "control_mode         : " << states.get(franka_o80::control_mode).to_string() << std::endl;
     std::cout << "control_error        : " << states.get(franka_o80::control_error).to_string();
@@ -51,123 +74,124 @@ void echo(franka_o80::FrontEnd *front)
     //std::cout << "cartesian_velocitiy:"; for (size_t i = 0; i < 3; i++) std::cout << " " << states.get(franka_o80::cartesian_velocitiy[i]).get(); std::cout << std::endl;
     //std::cout << "cartesian_rotation:"; for (size_t i = 0; i < 3; i++) std::cout << " " << states.get(franka_o80::cartesian_rotation[i]).get(); std::cout << std::endl;
 
-    std::cout << "time                 : " << execution_time << std::endl;
+    std::cout << "time                 : " << execution_time_ << std::endl;
 }
 
-void set1(franka_o80::FrontEnd *front, std::string input)
+void Control::execute(std::string input)
 {
-    //Command
+    enum class State
+    {
+        wait_command,
+        wait_sign,
+        wait_value
+    };
+
+    if (input.empty()) return;
     char *p = &input[0];
-    while (*p != '\0' && *p == ' ') p++;
-    char command = *p;
+    char command = '\0';
+    char sign = '\0';
+    State state = State::wait_command;
 
-    //Sign
-    p++;
-    while (*p != '\0' && *p == ' ') p++;
-    char sign = *p;
-    if (*p != '+' && *p != '-' && *p != '=') { help(); return; }
-
-    //Number
-    p++;
-    while (*p != '\0' && *p == ' ') p++;
-    double number = strtod(p, &p);
-
-    front->reset_next_index();
-    franka_o80::States states = front->wait_for_next().get_observed_states();
-    if (std::strchr("1234567", command)  != nullptr)
-    {
-        //Joints
-        number = M_PI * number / 180.0;
-        size_t actuator = franka_o80::joint_position[command - '1'];
-        if (sign == '+') states.values[actuator].value += number;
-        else if (sign == '-') states.values[actuator].value -= number;
-        else states.values[actuator].value = number;
-        front->add_command(actuator, states.values[actuator], o80::Duration_us::seconds(execution_time), o80::Mode::QUEUE);
-        front->pulse_and_wait();
-    }
-    else if (std::strchr("xyz", command) != nullptr)
-    {
-        //Cartesian
-        size_t actuator = franka_o80::cartesian_position[command - 'x'];
-        if (sign == '+') states.values[actuator].value += number;
-        else if (sign == '-') states.values[actuator].value -= number;
-        else states.values[actuator].value = number;
-        franka_o80::cartesian_to_joint(states);
-        for (size_t i = 0; i < 7; i++) front->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time), o80::Mode::QUEUE);
-        front->pulse_and_wait();
-    }
-    else if (std::strchr("uvw", command) != nullptr)
-    {
-        //Roll-patch-yaw
-        number = M_PI * number / 180.0;
-        size_t actuator = franka_o80::cartesian_position[command - 'u'];
-        if (sign == '+') states.values[actuator].value += number;
-        else if (sign == '-') states.values[actuator].value -= number;
-        else states.values[actuator].value = number;
-        franka_o80::cartesian_to_joint(states);
-        for (size_t i = 0; i < 7; i++) front->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time), o80::Mode::QUEUE);
-        front->pulse_and_wait();
-    }
-    else if (command == 'g')
-    {
-        //Gripper
-        size_t actuator = franka_o80::gripper_width;
-        if (sign == '+') states.values[actuator].value += number;
-        else if (sign == '-') states.values[actuator].value -= number;
-        else states.values[actuator].value = number;
-        front->add_command(actuator, states.values[actuator], o80::Duration_us::seconds(execution_time), o80::Mode::QUEUE);
-        front->pulse_and_wait();
-    }
-    else if (command == 't')
-    {
-        //Execution time
-        if (sign == '+') execution_time += number;
-        else if (sign == '-') execution_time -= number;
-        else execution_time = number;
-        if (execution_time < 1.0) execution_time = 1.0;
-    }
-}
-
-int run(int argc, char **argv)
-{
-    if (argc != 2) { help(); return 1; }
-
-    //Reading ID
-    const char *id = argv[1];
-    
-    //Creating frontend
-	franka_o80::FrontEnd frontend(id);
-    frontend.add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Duration_us::seconds(execution_time), o80::Mode::QUEUE);
-    frontend.pulse_and_wait();
-	
     while (true)
     {
-        std::cout << "Command: ";
+        switch (state)
+        {
+            case State::wait_command:
+            if (*p == '\0') return;
+            else if (*p == '#') return;
+            else if (*p == ' ' || *p == '\t') p++;
+            else if (*p == 'e') { echo(); p++; }
+            else if (*p == 'q') { quit_request_ = true; return; }
+            else if (std::strchr("1234567 xyz uvw g t", *p)  != nullptr) { state = State::wait_sign; command = *p; p++; }
+            else { help(); return; }
+            break;
+
+            case State::wait_sign:
+            if (*p == ' ' || *p == '\t') p++;
+            else if (std::strchr("+-=", *p)  != nullptr) { state = State::wait_value; sign = *p; p++; }
+            else { help(); return; }
+            break;
+
+            default: //case State::wait_value:
+            if (*p == ' ' || *p == '\t') { p++; break; }
+            char *np;
+            double value = strtod(p, &np);
+            if (np == p) { help(); return; }
+            state = State::wait_command;
+            p = np;
+            front_->reset_next_index();
+            franka_o80::States states = front_->wait_for_next().get_observed_states();    
+            if (std::strchr("1234567", *p)  != nullptr)
+            {
+                value = M_PI * value / 180.0;
+                size_t actuator = franka_o80::joint_position[command - '1'];
+                if (sign == '+') states.values[actuator].value += value;
+                else if (sign == '-') states.values[actuator].value -= value;
+                else states.values[actuator].value = value;
+                front_->add_command(actuator, states.values[actuator], o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            }
+            else if (std::strchr("xyz", *p)  != nullptr)
+            {
+                size_t actuator = franka_o80::cartesian_position[command - 'x'];
+                if (sign == '+') states.values[actuator].value += value;
+                else if (sign == '-') states.values[actuator].value -= value;
+                else states.values[actuator].value = value;
+                franka_o80::cartesian_to_joint(states);
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            }
+            else if (std::strchr("uvw", *p)  != nullptr)
+            {
+                value = M_PI * value / 180.0;
+                size_t actuator = franka_o80::cartesian_position[command - 'u'];
+                if (sign == '+') states.values[actuator].value += value;
+                else if (sign == '-') states.values[actuator].value -= value;
+                else states.values[actuator].value = value;
+                franka_o80::cartesian_to_joint(states);
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            }
+            else if (std::strchr("g", *p)  != nullptr)
+            {
+                size_t actuator = franka_o80::gripper_width;
+                if (sign == '+') states.values[actuator].value += value;
+                else if (sign == '-') states.values[actuator].value -= value;
+                else states.values[actuator].value = value;
+                front_->add_command(actuator, states.values[actuator], o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            }
+            else
+            {
+                if (sign == '+') execution_time_ += value;
+                else if (sign == '-') execution_time_ -= value;
+                else execution_time_ = value;
+                if (execution_time_ < 1.0) execution_time_ = 1.0;
+            }
+        }
+    }
+}
+
+void Control::loop()
+{
+    while (!quit_request_)
+    {
         std::string input;
         std::getline(std::cin, input);
-        char *p = &input[0];
-        while (*p != '\0' && *p == ' ') p++;
-        char command = *p;
-
-        if (std::strchr("1234567gxyzuvwt", command) != nullptr) set1(&frontend, input);
-        else if (command == 'e') echo(&frontend);
-        else if (command == 'q') break;
-        else help();
+        execute(input);
+        front_->pulse_and_wait();
     }
-
-	return 0;
 }
 
 int main(int argc, char **argv)
 {
+    if (argc != 2) { Control::help(); return 1; }
+
+    Control control(argv[1]);
 	try
 	{
-		return run(argc, argv);
+        control.loop();
+        return 0;
 	}
 	catch (std::exception &e)
 	{
 		std::cout << "Exception occured: " << e.what() << std::endl;
-		std::cout << "Terminating..." << std::endl;
 	}
 	return 1;
 }
