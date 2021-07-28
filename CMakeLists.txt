@@ -27,6 +27,9 @@ if(pybind11_FOUND)
 endif()
 
 #pinocchio
+if(EXISTS $ENV{ROS_PACKAGE_PATH}/cmake/pinocchio)
+	set(pinocchio_DIR $ENV{ROS_PACKAGE_PATH}/cmake/pinocchio)
+endif()
 find_package(catkin REQUIRED COMPONENTS pinocchio)
 
 #libfranka
