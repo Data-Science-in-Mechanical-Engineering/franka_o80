@@ -25,7 +25,7 @@ std::string franka_o80::DriverInputOutput::to_string(bool output) const
 
     //Robot cartesian
     result += " cartesian_position: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_position[i]).to_string(); result += " "; } result += "]";
-    result += " cartesian_orientation: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_orientation[i]).to_string(); result += " "; } result += "]";
+    result += " cartesian_orientation: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_orientation).to_string(); result += " "; } result += "]";
     result += " cartesian_velocitiy: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_velocity[i]).to_string(); result += " "; } result += "]";
     result += " cartesian_rotation: [ "; for (size_t i = 0; i < 3; i++) { result += get(cartesian_rotation[i]).to_string(); result += " "; } result += "]";
 

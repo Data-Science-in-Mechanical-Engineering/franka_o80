@@ -1,91 +1,154 @@
 #include "../include/franka_o80/state.hpp"
 
-franka_o80::State::State() : typ_(Type::real), value(0.0)
+franka_o80::State::State()
 {
+    set_real(0.0);
 }
 
-franka_o80::State::State(double value) : typ_(Type::real), value(value)
+franka_o80::State::State(double value)
 {
+    set_real(value);
 }
 
-franka_o80::State::State(Mode mode) : typ_(Type::mode), value(static_cast<double>(mode))
+franka_o80::State::State(const Eigen::Quaterniond &value)
 {
+    set_quaternion(value);
 }
 
-franka_o80::State::State(Error error) : typ_(Type::error), value(static_cast<double>(error))
+franka_o80::State::State(const Eigen::Matrix<double, 4, 1> &value)
 {
+    set_wxyz(value);
 }
 
-franka_o80::State::State(const State &state) : typ_(state.typ_), value(state.value)
+franka_o80::State::State(const Eigen::Matrix<double, 3, 1> &value)
 {
+    set_euler(value);
 }
 
-//===============================================================
-
-void franka_o80::State::set(double value)
+franka_o80::State::State(Mode value)
 {
-    this->typ_ = Type::real;
-    this->value = value;
+    set_mode(value);
 }
 
-void franka_o80::State::set(Mode mode)
+franka_o80::State::State(Error value)
 {
-    this->typ_ = Type::mode;
-    this->value = static_cast<double>(mode);
+    set_error(value);
 }
 
-void franka_o80::State::set(Error error)
+franka_o80::State::State(const State &state)
 {
-    this->typ_ = Type::error;
-    this->value = static_cast<double>(error);
+    if (state.typ_ == Type::real) set_real(state.value_.real);
+    else if (state.typ_ == Type::quaternion) set_quaternion(state.get_quaternion());
+    else if (state.typ_ == Type::mode) set_mode(state.value_.mode);
+    else set_error(state.value_.error);
 }
 
-//===============================================================
+void franka_o80::State::set_real(double value)
+{
+    typ_ = Type::real;
+    value_.real = value;
+}
 
-franka_o80::State::Type franka_o80::State::get_type()
+void franka_o80::State::set_quaternion(const Eigen::Quaterniond &value)
+{
+    typ_ = Type::quaternion;
+    value_.quaternion[0] = value.w();
+    value_.quaternion[1] = value.x();
+    value_.quaternion[2] = value.y();
+    value_.quaternion[3] = value.z();
+}
+
+void franka_o80::State::set_wxyz(const Eigen::Matrix<double, 4, 1> &value)
+{
+    typ_ = Type::quaternion;
+    for (size_t i = 0; i < 4; i++) value_.quaternion[i] = value(i);
+}
+
+void franka_o80::State::set_euler(const Eigen::Matrix<double, 3, 1> &value)
+{
+    typ_ = Type::quaternion;
+    Eigen::Quaterniond q = Eigen::AngleAxisd(value(0), Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(value(1), Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(value(2), Eigen::Vector3d::UnitX());
+    value_.quaternion[0] = q.w();
+    value_.quaternion[1] = q.x();
+    value_.quaternion[2] = q.y();
+    value_.quaternion[3] = q.z();
+}
+
+void franka_o80::State::set_mode(Mode value)
+{
+    typ_ = Type::mode;
+    value_.mode = value;
+}
+
+void franka_o80::State::set_error(Error value)
+{
+    typ_ = Type::error;
+    value_.error = value;
+}
+
+franka_o80::State::Type franka_o80::State::get_type() const
 {
     return typ_;
 }
 
-double franka_o80::State::get() const
+double franka_o80::State::get_real() const
 {
-    if (typ_ != Type::real) throw std::runtime_error("franka_o80: State type error");
+    if (typ_ != Type::real) throw std::runtime_error("franka_o80: State::get_real error");
+    return value_.real;
+}
+
+Eigen::Quaterniond franka_o80::State::get_quaternion() const
+{
+    if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_quaternion error");
+    Eigen::Quaterniond value;
+    value.w() = value_.quaternion[0];
+    value.x() = value_.quaternion[1];
+    value.y() = value_.quaternion[2];
+    value.z() = value_.quaternion[3];
     return value;
+}
+
+Eigen::Matrix<double, 4, 1> franka_o80::State::get_wxyz() const
+{
+    if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_wxyz error");
+    Eigen::Matrix<double, 4, 1> value;
+    for (size_t i = 0; i < 4; i++) value(i) = value_.quaternion[i];
+    return value;
+}
+
+Eigen::Matrix<double, 3, 1> franka_o80::State::get_euler() const
+{
+    if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_euler error");
+    Eigen::Quaterniond value;
+    value.w() = value_.quaternion[0];
+    value.x() = value_.quaternion[1];
+    value.y() = value_.quaternion[2];
+    value.z() = value_.quaternion[3];
+    return value.toRotationMatrix().eulerAngles(2, 1, 0);
 }
 
 franka_o80::Mode franka_o80::State::get_mode() const
 {
-    if (typ_ != Type::mode) return Mode::invalid;
-    return static_cast<Mode>(value);
+    if (typ_ != Type::mode) throw std::runtime_error("franka_o80: State::get_mode error");
+    return value_.mode;
 }
 
 franka_o80::Error franka_o80::State::get_error() const
 {
-    if (typ_ != Type::error) return Error::ok;
-    return static_cast<Error>(value);
-}
-
-franka_o80::State::operator double() const
-{
-    return get();
-}
-
-franka_o80::State::operator Mode() const
-{
-    return get_mode();
-}
-
-franka_o80::State::operator Error() const
-{
-    return get_error();
+    if (typ_ != Type::error) throw std::runtime_error("franka_o80: State::get_error error");
+    return value_.error;
 }
 
 std::string franka_o80::State::to_string() const
 {
-    if (typ_ == Type::real) return std::to_string(value);
+    if (typ_ == Type::real) return std::to_string(value_.real);
+    else if (typ_ == Type::quaternion)
+    {
+        return "[" + std::to_string(value_.quaternion[0]) + " " + std::to_string(value_.quaternion[1]) + " " + std::to_string(value_.quaternion[2]) + " " + std::to_string(value_.quaternion[3]) + "]";
+    }
     else if (typ_ == Type::mode)
     {
-        switch (get_mode())
+        switch (value_.mode)
         {
         case Mode::torque:
             return "Mode::torque";
@@ -126,7 +189,7 @@ std::string franka_o80::State::to_string() const
     }
     else
     {
-        switch (get_error())
+        switch (value_.error)
         {
         case Error::robot_command_exception:
             return "Error::robot_command_exception";
@@ -175,7 +238,16 @@ bool franka_o80::State::finished(const o80::TimePoint &start,
                   const State &target_state,
                   const o80::Speed &speed)
 {
-    return o80::finished(start, now, start_state.value, current_state.value, target_state.value, speed);
+    
+    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State::finished error");
+    double time_difference_us = o80::time_diff_us(start, now);
+    double value_difference;
+    if (start_state.typ_ == Type::real) value_difference = abs(target_state.value_.real - start_state.value_.real);
+    else if (start_state.typ_ == Type::quaternion) value_difference = start_state.get_quaternion().angularDistance(target_state.get_quaternion());
+    else if (start_state.typ_ == Type::mode) value_difference = abs(static_cast<double>(target_state.value_.mode) - static_cast<double>(target_state.value_.mode));
+    else value_difference = abs(static_cast<double>(target_state.value_.error) - static_cast<double>(target_state.value_.error));
+    double duration_us = value_difference / speed.value;
+    return time_difference_us > duration_us;
 }
 
 franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &start,
@@ -186,22 +258,38 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
                            const State &target_state,
                            const o80::Speed &speed)
 {
-    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
-    else if (start_state.typ_ == Type::error)
+    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State::intermediate_state(speed) error");
+    double time_difference_us = o80::time_diff_us(start, now);
+    if (start_state.typ_ == Type::real)
     {
-        if (start_state.value == target_state.value ||
-            (target_state.value > start_state.value && start_state.value + speed.value * o80::time_diff_us(start, now) > target_state) ||
-            (target_state.value < start_state.value && start_state.value - speed.value * o80::time_diff_us(start, now) < target_state)) return target_state;
-        else return Error::ok;
+        double value_difference = abs(target_state.value_.real - start_state.value_.real);
+        double duration_us = value_difference / speed.value;
+        if (time_difference_us > duration_us) return target_state;
+        else return start_state.value_.real + (time_difference_us / duration_us) * (target_state.value_.real - start_state.value_.real);
+    }
+    else if (start_state.typ_ == Type::quaternion)
+    {
+        double value_difference = start_state.get_quaternion().angularDistance(target_state.get_quaternion());
+        double duration_us = value_difference / speed.value;
+        if (time_difference_us > duration_us) return target_state;
+        else return start_state.get_quaternion().slerp(time_difference_us / duration_us, target_state.get_quaternion());
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value ||
-            (target_state.value > start_state.value && start_state.value + speed.value * o80::time_diff_us(start, now) > target_state) ||
-            (target_state.value < start_state.value && start_state.value - speed.value * o80::time_diff_us(start, now) < target_state)) return target_state;
+        if (target_state.value_.mode == start_state.value_.mode) return target_state; //Interpolation between equal is valid, need to be checked here because otherwise it returns invalid
+        double value_difference = abs(static_cast<double>(target_state.value_.mode) - static_cast<double>(start_state.value_.mode));
+        double duration_us = value_difference / speed.value;
+        if (time_difference_us > duration_us) return target_state;
         else return Mode::invalid;
     }
-    else return State(o80::intermediate_state(start, now, start_state.value, current_state.value, target_state.value, speed));
+    else
+    {
+        if (target_state.value_.error == start_state.value_.error) return target_state; //Interpolation between equal is valid, need to be checked here because otherwise it returns invalid
+        double value_difference = abs(static_cast<double>(target_state.value_.error) - static_cast<double>(start_state.value_.error));
+        double duration_us = value_difference / speed.value;
+        if (time_difference_us > duration_us) return target_state;
+        else return Error::ok;
+    }
 }
 
 franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &start,
@@ -212,18 +300,27 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
                            const State &target_state,
                            const o80::Duration_us &duration)
 {
-    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
-    else if (start_state.typ_ == Type::error)
+    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State::intermediate_state(duration) error");
+    double time_difference_us = o80::time_diff_us(start, now);
+    if (time_difference_us > duration.value) return target_state;
+    if (start_state.typ_ == Type::real)
     {
-        if (start_state.value == target_state.value || o80::time_diff_us(start, now) > duration.value) return target_state;
-        else return Error::ok;
+        return start_state.value_.real + (time_difference_us / duration.value) * (target_state.value_.real - start_state.value_.real);
+    }
+    else if (start_state.typ_ == Type::quaternion)
+    {
+        return start_state.get_quaternion().slerp(time_difference_us / duration.value, target_state.get_quaternion());
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value || o80::time_diff_us(start, now) > duration.value) return target_state;
+        if (target_state.value_.mode == start_state.value_.mode) return target_state; //Interpolation between equal is valid
         else return Mode::invalid;
     }
-    else return State(o80::intermediate_state(start, now, start_state.value, current_state.value, target_state.value, duration));
+    else
+    {
+        if (target_state.value_.error == start_state.value_.error) return target_state; //Interpolation between equal is valid
+        else return Error::ok;
+    }
 }
 
 franka_o80::State franka_o80::State::intermediate_state(long int start_iteration,
@@ -234,55 +331,38 @@ franka_o80::State franka_o80::State::intermediate_state(long int start_iteration
                            const State &target_state,
                            const o80::Iteration &iteration)
 {
-    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State type error");
-    else if (start_state.typ_ == Type::error)
+    if (start_state.typ_ != target_state.typ_) throw std::runtime_error("franka_o80: State::intermediate_state(iteration) error");
+    if (current_iteration >= iteration.value) return target_state;
+    if (start_state.typ_ == Type::real)
     {
-        if (start_state.value == target_state.value || current_iteration >= iteration.value) return target_state;
-        else return Error::ok;
+        return start_state.value_.real + (static_cast<double>(current_iteration - start_iteration) / static_cast<double>(iteration.value - start_iteration)) * (target_state.value_.real - start_state.value_.real);
+    }
+    else if (start_state.typ_ == Type::quaternion)
+    {
+        return start_state.get_quaternion().slerp((static_cast<double>(current_iteration - start_iteration) / static_cast<double>(iteration.value - start_iteration)), target_state.get_quaternion());
     }
     else if (start_state.typ_ == Type::mode)
     {
-        if (start_state.value == target_state.value || current_iteration >= iteration.value) return target_state;
+        if (target_state.value_.mode == start_state.value_.mode) return target_state; //Interpolation between equal is valid
         else return Mode::invalid;
     }
-    else return State(o80::intermediate_state(start_iteration, current_iteration, start_state.value, current_state.value, target_state.value, iteration));
+    else
+    {
+        if (target_state.value_.error == start_state.value_.error) return target_state; //Interpolation between equal is valid
+        else return Error::ok;
+    }
 }
 
-bool franka_o80::operator==(State a, State b)  { if (a.get_type() != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a.value == b.value; }
-bool franka_o80::operator==(double a, State b) { if (State::Type::real != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a == b.value; }
-bool franka_o80::operator==(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value == b; }
-bool franka_o80::operator==(Mode a, State b)   { if (State::Type::mode != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a == static_cast<Mode>(b.value); }
-bool franka_o80::operator==(State a, Mode b)   { if (a.get_type() != State::Type::mode) throw std::runtime_error("franka_o80: State type error"); return static_cast<Mode>(a.value) == b; }
-bool franka_o80::operator==(Error a, State b)  { if (State::Type::error != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a == static_cast<Error>(b.value); }
-bool franka_o80::operator==(State a, Error b)  { if (a.get_type() != State::Type::error) throw std::runtime_error("franka_o80: State type error"); return static_cast<Error>(a.value) == b; }
-bool franka_o80::operator!=(State a, State b)  { if (a.get_type() != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a.value != b.value; }
-bool franka_o80::operator!=(double a, State b) { if (State::Type::real != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a != b.value; }
-bool franka_o80::operator!=(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value != b; }
-bool franka_o80::operator!=(Mode a, State b)   { if (State::Type::mode != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a != static_cast<Mode>(b.value); }
-bool franka_o80::operator!=(State a, Mode b)   { if (a.get_type() != State::Type::mode) throw std::runtime_error("franka_o80: State type error"); return static_cast<Mode>(a.value) != b; }
-bool franka_o80::operator!=(Error a, State b)  { if (State::Type::error != b.get_type()) throw std::runtime_error("franka_o80: State type error"); return a != static_cast<Error>(b.value); }
-bool franka_o80::operator!=(State a, Error b)  { if (a.get_type() != State::Type::error) throw std::runtime_error("franka_o80: State type error"); return static_cast<Error>(a.value) != b; }
-bool franka_o80::operator<(State a, State b)   { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value < b.value; }
-bool franka_o80::operator<(double a, State b)  { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a < b.value; }
-bool franka_o80::operator<(State a, double b)  { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value < b; }
-bool franka_o80::operator>(State a, State b)   { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value > b.value; }
-bool franka_o80::operator>(double a, State b)  { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a > b.value; }
-bool franka_o80::operator>(State a, double b)  { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value > b; }
-bool franka_o80::operator<=(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value <= b.value; }
-bool franka_o80::operator<=(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a <= b.value; }
-bool franka_o80::operator<=(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value <= b; }
-bool franka_o80::operator>=(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value >= b.value; }
-bool franka_o80::operator>=(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a >= b.value; }
-bool franka_o80::operator>=(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value >= b; }
-franka_o80::State franka_o80::operator+(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value + b.value; }
-franka_o80::State franka_o80::operator+(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a + b.value; }
-franka_o80::State franka_o80::operator+(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value + b; }
-franka_o80::State franka_o80::operator-(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value - b.value; }
-franka_o80::State franka_o80::operator-(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a - b.value; }
-franka_o80::State franka_o80::operator-(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value - b; }
-franka_o80::State franka_o80::operator*(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value * b.value; }
-franka_o80::State franka_o80::operator*(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a * b.value; }
-franka_o80::State franka_o80::operator*(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value * b; }
-franka_o80::State franka_o80::operator/(State a, State b)  { if (a.get_type() != State::Type::real || b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value / b.value; }
-franka_o80::State franka_o80::operator/(double a, State b) { if (b.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a / b.value; }
-franka_o80::State franka_o80::operator/(State a, double b) { if (a.get_type() != State::Type::real) throw std::runtime_error("franka_o80: State type error"); return a.value / b; }
+bool franka_o80::operator==(const State &a, const State &b)
+{
+    if (a.typ_ != b.typ_) return false;
+    else if (a.typ_ == State::Type::real) return a.value_.real == b.value_.real;
+    else if (a.typ_ == State::Type::quaternion) return a.value_.quaternion == b.value_.quaternion;
+    else if (a.typ_ == State::Type::mode) return a.value_.mode == b.value_.mode;
+    else return a.value_.error == b.value_.error;
+}
+
+bool franka_o80::operator!=(const State &a, const State &b)
+{
+    return !(a == b);
+}

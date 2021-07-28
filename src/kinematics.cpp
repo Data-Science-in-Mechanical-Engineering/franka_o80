@@ -25,22 +25,21 @@ void franka_o80::joint_to_cartesian(States &states)
     //Transforming to Eigen
     Eigen::VectorXd joint_positions(Kinematics::model_.nq);
     joint_positions.setZero();
-    for (size_t i = 0; i < 7; i++) joint_positions(Kinematics::robot_joint_ids_[i] - 1) = states.get(joint_position[i]); //-1 because of universe joint does not go here
+    for (size_t i = 0; i < 7; i++) joint_positions(Kinematics::robot_joint_ids_[i] - 1) = states.get(joint_position[i]).get_real(); //-1 because of universe joint does not go here
 
     //Performing forward kinematics
     pinocchio::forwardKinematics(Kinematics::model_, Kinematics::data_, joint_positions);
     pinocchio::SE3 se3 = Kinematics::data_.oMi[Kinematics::robot_joint_ids_[6]];
     
-    //Fix: rotating 45 degree around "forward" and translation 0.2 along "forward"
+    //Fix: rotating -45 degree around Z, translating 0.2 along Z
     Eigen::Matrix3d rotation = se3.rotation_impl();
-    Eigen::Vector3d forward = rotation.col(2);
-    rotation = Eigen::AngleAxisd(M_PI / 4, forward) * rotation;
-    Eigen::Vector3d translation = se3.translation_impl() + 0.2 * forward;
+    Eigen::Vector3d translation = se3.translation_impl();
+    rotation = Eigen::AngleAxisd(-M_PI / 4, rotation.col(2)) * rotation;
+    translation += 0.210399 * rotation.col(2);
 
     //Returning result
-    Eigen::Vector3d euler = rotation.eulerAngles(2, 1, 0);
     for (size_t i = 0; i < 3; i++) states.set(cartesian_position[i], translation(i));
-    for (size_t i = 0; i < 3; i++) states.set(cartesian_orientation[i], euler(i));
+    states.set(cartesian_orientation, Eigen::Quaterniond(rotation));
 }
 
 void franka_o80::cartesian_to_joint(States &states)
@@ -55,20 +54,16 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
     //Copying hint
     Eigen::VectorXd result(Kinematics::model_.nq);
     result.setZero();
-    for (size_t i = 0; i < 7; i++) result(Kinematics::robot_joint_ids_[i] - 1) = hint.values[joint_position[i]];
+    for (size_t i = 0; i < 7; i++) result(Kinematics::robot_joint_ids_[i] - 1) = hint.get(joint_position[i]).get_real();
 
     //Transforming to Eigen
     Eigen::Vector3d translation;
-    for (size_t i = 0; i < 3; i++) translation(i) = states.get(cartesian_position[i]);
-    Eigen::Matrix3d rotation(
-        Eigen::AngleAxisd(states.get(cartesian_orientation[0]), Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(states.get(cartesian_orientation[1]), Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(states.get(cartesian_orientation[2]), Eigen::Vector3d::UnitX()));
+    for (size_t i = 0; i < 3; i++) translation(i) = states.get(cartesian_position[i]).get_real();
+    Eigen::Matrix3d rotation = states.get(cartesian_orientation).get_quaternion().toRotationMatrix();
 
-    //Fix: rotating -45 degree around "forward" and translation -0.2 along "forward"
-    Eigen::Vector3d forward = rotation.col(2);
-    rotation = Eigen::AngleAxisd(-M_PI / 4, forward) * rotation;
-    translation -= 0.2 * forward;
+    //Fix: rotating 45 degree around Z, translation -0.2 along Z
+    rotation = Eigen::AngleAxisd(M_PI / 4, rotation.col(2)) * rotation;
+    translation -= 0.210399 * rotation.col(2);
     const pinocchio::SE3 goal(rotation, translation);
     
     //Constants

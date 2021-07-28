@@ -14,12 +14,23 @@ PYBIND11_MODULE(franka_o80, m)
     pybind11::class_<franka_o80::State>(m, "State")
         .def(pybind11::init<>())
         .def(pybind11::init<double>())
+        .def(pybind11::init<const Eigen::Quaterniond&>())
+        .def(pybind11::init<const Eigen::Matrix<double, 4, 1>&>())
+        .def(pybind11::init<const Eigen::Matrix<double, 3, 1>&>())
         .def(pybind11::init<franka_o80::Mode>())
         .def(pybind11::init<franka_o80::Error>())
-        .def("get", &franka_o80::State::get)
-        .def("set", pybind11::overload_cast<double>(&franka_o80::State::set))
-        .def("set", pybind11::overload_cast<franka_o80::Mode>(&franka_o80::State::set))
-        .def("set", pybind11::overload_cast<franka_o80::Error>(&franka_o80::State::set))
+        .def("get_real",        &franka_o80::State::get_real)
+        .def("get_quaternion",  &franka_o80::State::get_quaternion)
+        .def("get_wxyz",        &franka_o80::State::get_wxyz)
+        .def("get_euler",       &franka_o80::State::get_euler)
+        .def("get_mode",        &franka_o80::State::get_mode)
+        .def("get_error",       &franka_o80::State::get_error)
+        .def("set_real",        &franka_o80::State::set_real)
+        .def("set_quaternion",  &franka_o80::State::set_quaternion)
+        .def("set_wxyz",        &franka_o80::State::set_wxyz)
+        .def("set_euler",       &franka_o80::State::set_euler)
+        .def("set_mode",        &franka_o80::State::set_mode)
+        .def("set_error",       &franka_o80::State::set_error)
         .def("to_string", &franka_o80::State::to_string);
 
     //limits.hpp
@@ -75,7 +86,7 @@ PYBIND11_MODULE(franka_o80, m)
     m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_velocity[i]; });
     m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_torque[i]; });
     m.def("cartesian_position",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_position[i]; });
-    m.def("cartesian_orientation",  [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_orientation[i]; });
+    m.attr("cartesian_orientation") = franka_o80::cartesian_orientation;
     m.def("cartesian_velocity",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_velocity[i]; });
     m.def("cartesian_rotation",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_rotation[i]; });
 
