@@ -14,7 +14,7 @@ public:
     DriverInput();
     ///Creates driver input from state
     ///@param states States to transform to driver input
-    DriverInput(const o80::States<actuator_number, State> &states);
+    DriverInput(const franka_o80::States &states);
     ///Prints driver input to `std::cout`
     ///@param endl `true` to end output with `std::endl`
     void print(bool endl);

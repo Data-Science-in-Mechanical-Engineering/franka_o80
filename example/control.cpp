@@ -10,10 +10,19 @@
 class Control
 {
 private:
+    enum class Command
+    {
+        no_previous_joint,
+        no_previous_cartesian,
+        joint,
+        cartesian
+    };
+
     std::unique_ptr<franka_o80::FrontEnd> front_;
-    double execution_time_;
-    bool command_added_;
-    bool finish_;
+    double execution_time_  = 5.0;
+    bool finish_            = false;
+    Command command_        = Command::no_previous_joint;
+    bool gripper_command_   = false;
 
 public:
     static void help();
@@ -52,11 +61,8 @@ void Control::help()
 Control::Control(std::string id)
 {
 	front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
-    front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
+    front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Duration_us::seconds(1.0), o80::Mode::QUEUE);
     front_->pulse_and_wait();
-    execution_time_ = 5.0;
-    command_added_ = false;
-    finish_ = false;
 }
 
 void Control::echo()
@@ -86,11 +92,22 @@ void Control::echo()
 
 void Control::defaultt()
 {
-    franka_o80::States states = franka_o80::default_states();
+    //Read states if need it
+    franka_o80::States states;
+    if (command_ == Command::no_previous_joint) { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+    //Remind cartesian target
+    if (command_ == Command::no_previous_joint)
+    {
+        for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], states.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
+        front_->add_command(franka_o80::cartesian_orientation, states.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
+    }
+
+    //Add command
     front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
-    for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], states.get(franka_o80::cartesian_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-    front_->add_command(franka_o80::cartesian_orientation, states.get(franka_o80::cartesian_orientation), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-    command_added_ = true;
+    for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]), o80::Duration_us::seconds(execution_time_),  o80::Mode::QUEUE);
+    front_->add_command(franka_o80::cartesian_orientation, franka_o80::default_states().get(franka_o80::cartesian_orientation), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+    command_ = Command::cartesian;
 }
 
 void Control::execute(std::string input)
@@ -140,37 +157,70 @@ void Control::execute(std::string input)
         if (np == p) { help(); return; }
         p = np;
         if (std::strchr("qr", command)) { parser = Parser::wait_value2; continue; }
-        front_->reset_next_index();
-        franka_o80::States states = front_->wait_for_next().get_observed_states();
-        franka_o80::State state;
         if (std::strchr("1234567", command)  != nullptr)
         {
-            values[0] = M_PI * values[0] / 180.0;
+            //Read states if need it
+            if (command_ == Command::cartesian) { help(); return; }
+            franka_o80::States states;
+            if (sign != '=' || command_ == Command::no_previous_cartesian) { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+            //Remind joint target
+            if (command_ == Command::no_previous_cartesian)
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Mode::QUEUE);
+            
+            //Set target
             size_t actuator = franka_o80::joint_position[command - '1'];
-            if (sign == '+') state.set_real(states.get(actuator).get_real() + values[0]);
-            else if (sign == '-') state.set_real(states.get(actuator).get_real() - values[0]);
-            else state.set_real(values[0]);
+            franka_o80::State state;
+            if (sign == '+') state.set_real(states.get(actuator).get_real() + M_PI * values[0] / 180.0);
+            else if (sign == '-') state.set_real(states.get(actuator).get_real() - M_PI * values[0] / 180.0);
+            else state.set_real(M_PI * values[0] / 180.0);
+
+            //Add command
             front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
             front_->add_command(actuator, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-            command_added_ = true;
+            command_ = Command::joint;
         }
         else if (std::strchr("xyz", command)  != nullptr)
         {
+            //Read states if need it
+            if (command_ == Command::joint) { help(); return; }
+            franka_o80::States states;
+            if (sign != '=' || command_ == Command::no_previous_joint) { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+            //Remind cartesian target
+            if (command_ == Command::no_previous_joint)
+            {
+                for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], states.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
+                front_->add_command(franka_o80::cartesian_orientation, states.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
+            }
+
+            //Set target
             size_t actuator = franka_o80::cartesian_position[command - 'x'];
+            franka_o80::State state;
             if (sign == '+') state.set_real(states.get(actuator).get_real() + values[0]);
             else if (sign == '-') state.set_real(states.get(actuator).get_real() - values[0]);
             else state.set_real(values[0]);
+
+            //Add command
             front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
             front_->add_command(actuator, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-            command_added_ = true;
+            command_ = Command::cartesian;
         }
         else if (command == 'g')
         {
+            //Read states if need it
+            franka_o80::States states;
+            if (sign != '=') { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+            //Set target
+            franka_o80::State state;
             if (sign == '+') state.set_real(states.get(franka_o80::gripper_width).get_real() + values[0]);
             else if (sign == '-') state.set_real(states.get(franka_o80::gripper_width).get_real() - values[0]);
             else state.set_real(values[0]);
+
+            //Add command
             front_->add_command(franka_o80::gripper_width, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-            command_added_ = true;
+            gripper_command_ = true;
         }
         else
         {
@@ -202,14 +252,27 @@ void Control::execute(std::string input)
         if (np == p) { help(); return; }
         p = np;
         if (command == 'q') { parser = Parser::wait_value4; continue; }
-        front_->reset_next_index();
-        franka_o80::States states = front_->wait_for_next().get_observed_states();
-        franka_o80::State state(Eigen::Matrix<double, 3, 1>(values[0], values[1], values[2]));
+
+        //Read states if need it
+        franka_o80::States states;
+        if (sign != '=' || command_ == Command::no_previous_joint) { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+        //Remind cartesian target
+        if (command_ == Command::no_previous_joint)
+        {
+            for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], states.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
+            front_->add_command(franka_o80::cartesian_orientation, states.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
+        }
+
+        //Set target
+        franka_o80::State state(Eigen::Matrix<double, 3, 1>(M_PI * values[0] / 180, M_PI * values[1] / 180, M_PI * values[2] / 180));
         if (sign == '+') state.set_quaternion(state.get_quaternion() * states.get(franka_o80::cartesian_orientation).get_quaternion());
         else if (sign == '-') state.set_quaternion(state.get_quaternion().inverse() * states.get(franka_o80::cartesian_orientation).get_quaternion());
+        
+        //Add command
         front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
         front_->add_command(franka_o80::cartesian_orientation, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-        command_added_ = true;
+        command_ = Command::cartesian;
         parser = Parser::wait_command;
         continue;
     }
@@ -221,14 +284,27 @@ void Control::execute(std::string input)
         values[3] = strtod(p, &np);
         if (np == p) { help(); return; }
         p = np;
-        front_->reset_next_index();
-        franka_o80::States states = front_->wait_for_next().get_observed_states();
+
+        //Read states if need it
+        franka_o80::States states;
+        if (sign != '=' || command_ == Command::no_previous_joint) { front_->reset_next_index(); states = front_->wait_for_next().get_observed_states(); }
+
+        //Remind cartesian target
+        if (command_ == Command::no_previous_joint)
+        {
+            for (size_t i = 0; i < 3; i++) front_->add_command(franka_o80::cartesian_position[i], states.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
+            front_->add_command(franka_o80::cartesian_orientation, states.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
+        }
+
+        //Set target
         franka_o80::State state(Eigen::Matrix<double, 4, 1>(values[0], values[1], values[2], values[3]));
         if (sign == '+') state.set_quaternion(state.get_quaternion() * states.get(franka_o80::cartesian_orientation).get_quaternion());
         else if (sign == '-') state.set_quaternion(state.get_quaternion().inverse() * states.get(franka_o80::cartesian_orientation).get_quaternion());
+
+        //Add command
         front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
         front_->add_command(franka_o80::cartesian_orientation, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-        command_added_ = true;
+        command_ = Command::cartesian;
         parser = Parser::wait_command;
         continue;
     }
@@ -242,7 +318,10 @@ void Control::loop()
         std::string input;
         std::getline(std::cin, input);
         execute(input);
-        if (command_added_) { front_->pulse_and_wait(); command_added_ = false; }
+        if (command_ == Command::joint || command_ == Command::cartesian || gripper_command_) front_->pulse_and_wait();
+        if (command_ == Command::joint) command_ = Command::no_previous_joint;
+        if (command_ == Command::cartesian) command_ = Command::no_previous_cartesian;
+        gripper_command_ = false;
     }
 }
 

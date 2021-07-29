@@ -123,10 +123,9 @@ public:
 	template <class Archive> void serialize(Archive &archive)
     {
         archive(typ_);
-        if (typ_ == Type::real) archive(value_.real);
-        else if (typ_ == Type::quaternion) archive(value_.quaternion);
-        else if (typ_ == Type::mode) archive(value_.mode);
-        else archive(value_.error);
+        archive(value_.quaternion);
+        //Most probably o80 initializes shared memory with size at first serialization. Because states are uninitialized, this state is smaller than will be in future
+        //So we write largest value. Not safe and not perfect
     }
 };
 

@@ -87,6 +87,8 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
     //Intelligent position
     else if (input_mode == Mode::intelligent_position)
     {
+        //std::cout << "J";
+
         mode_ = Mode::intelligent_position;
         output_.set(control_mode, Mode::intelligent_position);
 
@@ -104,6 +106,8 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
     //Intelligent cartesian position
     else if (input_mode == Mode::intelligent_cartesian_position)
     {
+        //std::cout << "C";
+
         mode_ = Mode::intelligent_cartesian_position;
         output_.set(control_mode, Mode::intelligent_cartesian_position);
 
@@ -121,11 +125,11 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
         Eigen::Matrix<double, 6, 7> jacobian = Eigen::Matrix<double, 6, 7>::Map(model_->zeroJacobian(franka::Frame::kEndEffector, robot_state).data());
         Eigen::Matrix<double, 6, 1> error;
         error.head(3) << position - input_target_position;
-        if (input_target_orientation.coeffs().dot(orientation.coeffs()) < 0.0) orientation.coeffs() = -orientation.coeffs();
+        if (input_target_orientation.coeffs().dot(orientation.coeffs()) < 0.0) orientation.coeffs() << -orientation.coeffs();
         Eigen::Quaterniond orientation_error = orientation.inverse() * input_target_orientation;
         error.tail(3) << orientation_error.x(), orientation_error.y(), orientation_error.z();
         error.tail(3) << -transform.linear() * error.tail(3);
-        Eigen::Matrix<double, 7, 1> joint_torques = jacobian.transpose() * (-cartesian_stiffness_ * error - cartesian_damping_ * jacobian * joint_velocities) + coriolis;
+        Eigen::Matrix<double, 7, 1> joint_torques = jacobian.transpose() * (-cartesian_stiffness_ * error - cartesian_damping_ * (jacobian * joint_velocities)) + coriolis;
         Eigen::Matrix<double, 7, 1>::Map(&torques->tau_J[0]) = joint_torques;
     }
     //Simple torque
@@ -419,26 +423,32 @@ void franka_o80::Driver::robot_control_function_()
         catch (franka::CommandException &e)
         {
             output_error = Error::robot_command_exception;
+            std::cout << e.what() << std::endl;
         }
 		catch (franka::ControlException &e)
 		{
 			output_error = Error::robot_control_exception;
+            std::cout << e.what() << std::endl;
 		}
 		catch (franka::InvalidOperationException &e)
         {
             output_error = Error::robot_invalid_operation_exception;
+            std::cout << e.what() << std::endl;
         }
         catch (franka::NetworkException &e)
         {
             output_error = Error::robot_network_exception;
+            std::cout << e.what() << std::endl;
         }
         catch (franka::RealtimeException &e)
         {
             output_error = Error::robot_realtime_exception;
+            std::cout << e.what() << std::endl;
         }
         catch (std::invalid_argument &e)
         {
             output_error = Error::robot_invalid_argument_exception;
+            std::cout << e.what() << std::endl;
         }
         catch (...)
         {
@@ -534,7 +544,7 @@ void franka_o80::Driver::start()
     if (started_) return;
     started_ = true;
 
-    //Initialize values
+    //Initialize constants
     const double translational_stiffness = 150.0;
     const double rotational_stiffness = 10.0;
     cartesian_stiffness_.setZero();
@@ -560,12 +570,7 @@ void franka_o80::Driver::start()
     robot_->setJointImpedance({{3000, 3000, 3000, 2500, 2500, 2000, 2000}});
     robot_->setCartesianImpedance({{3000, 3000, 3000, 300, 300, 300}});
     franka::RobotState robot_state = robot_->readOnce();
-    for (size_t i = 0; i < 7; i++)
-    {
-        output_.set(joint_position[i], robot_state.q[i]);
-        output_.set(joint_velocity[i], robot_state.dq[i]);
-        output_.set(joint_torque[i], robot_state.tau_J[i]);
-    }
+    robot_write_output_(robot_state);
     robot_control_thread_ = std::thread([](Driver *driver) -> void { driver->robot_control_function_(); }, this);
 
     //Starting gripper

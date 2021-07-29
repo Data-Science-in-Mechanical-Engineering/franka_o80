@@ -1,6 +1,6 @@
 #include "../include/franka_o80/driver_input_output.hpp"
 
-franka_o80::DriverInputOutput::DriverInputOutput()
+franka_o80::DriverInputOutput::DriverInputOutput() : States(default_states())
 {}
 
 franka_o80::DriverInputOutput::DriverInputOutput(const States &states) : States(states)

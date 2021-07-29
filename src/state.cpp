@@ -99,6 +99,7 @@ double franka_o80::State::get_real() const
 
 Eigen::Quaterniond franka_o80::State::get_quaternion() const
 {
+    if (typ_ == Type::real && value_.real == 0.0) return Eigen::Quaterniond(1.0, 0.0, 0.0, 0.0); //Unitialized 'States' contain invalid zero values. That's ok
     if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_quaternion error");
     Eigen::Quaterniond value;
     value.w() = value_.quaternion[0];
@@ -110,6 +111,7 @@ Eigen::Quaterniond franka_o80::State::get_quaternion() const
 
 Eigen::Matrix<double, 4, 1> franka_o80::State::get_wxyz() const
 {
+    if (typ_ == Type::real && value_.real == 0.0) return Eigen::Matrix<double, 4, 1>(1.0, 0.0, 0.0, 0.0);
     if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_wxyz error");
     Eigen::Matrix<double, 4, 1> value;
     for (size_t i = 0; i < 4; i++) value(i) = value_.quaternion[i];
@@ -118,6 +120,7 @@ Eigen::Matrix<double, 4, 1> franka_o80::State::get_wxyz() const
 
 Eigen::Matrix<double, 3, 1> franka_o80::State::get_euler() const
 {
+    if (typ_ == Type::real && value_.real == 0.0) return Eigen::Matrix<double, 3, 1>(0.0, 0.0, 0.0);
     if (typ_ != Type::quaternion) throw std::runtime_error("franka_o80: State::get_euler error");
     Eigen::Quaterniond value;
     value.w() = value_.quaternion[0];
@@ -129,12 +132,14 @@ Eigen::Matrix<double, 3, 1> franka_o80::State::get_euler() const
 
 franka_o80::Mode franka_o80::State::get_mode() const
 {
+    if (typ_ == Type::real && value_.real == 0.0) return Mode::invalid;
     if (typ_ != Type::mode) throw std::runtime_error("franka_o80: State::get_mode error");
     return value_.mode;
 }
 
 franka_o80::Error franka_o80::State::get_error() const
 {
+    if (typ_ == Type::real && value_.real == 0.0) return Error::ok;
     if (typ_ != Type::error) throw std::runtime_error("franka_o80: State::get_error error");
     return value_.error;
 }

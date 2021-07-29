@@ -14,7 +14,7 @@ public:
     DriverOutput();
     ///Creates driver output from state
     ///@param states States to transform to driver output
-    DriverOutput(const o80::States<actuator_number, State> &states);
+    DriverOutput(const franka_o80::States &states);
     ///Prints driver output to `std::cout`
     ///@param endl `true` to end output with `std::endl`
     void print(bool endl);
