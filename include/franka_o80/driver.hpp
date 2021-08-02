@@ -34,13 +34,14 @@ private:
     std::thread robot_control_thread_;
     std::unique_ptr<franka::Gripper> gripper_;
     std::thread gripper_control_thread_;
-	Mode mode_ = Mode::invalid;
-	DriverInput input_;
-    DriverOutput output_;
-    bool input_finished_ = false;
-	std::mutex input_output_mutex_;
-    Eigen::Matrix<double, 7, 7> joint_stiffness_, joint_damping_;
-    Eigen::Matrix<double, 6, 6> cartesian_stiffness_, cartesian_damping_;
+    std::mutex input_output_mutex_;
+
+	Mode mode_ = Mode::invalid;                         //Current mode, set when entering the loop and in intelligent modes. Read robot thread
+    Eigen::Matrix<double, 7, 1> joint_stiffness_;       //Current joint stiffness, set when entering the loop. Read by robot thread
+    Eigen::Matrix<double, 6, 1> cartesian_stiffness_;   //Current cartesian stiffness, set when entering the loop. Read by robot thread
+	DriverInput input_;             //Input. Read by robot and gripper, written by external threads. Error is ignored
+    DriverOutput output_;           //Output. Written by robot and gripper, read by external threads. Error is also read by robot and gripper
+    bool input_finished_ = false;   //Input finished flag. Read by robot and gripper, set by external threads
 
     void robot_write_output_(const franka::RobotState &robot_state);
     void robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);

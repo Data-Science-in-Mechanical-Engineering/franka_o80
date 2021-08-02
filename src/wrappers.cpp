@@ -34,13 +34,13 @@ PYBIND11_MODULE(franka_o80, m)
         .def("to_string", &franka_o80::State::to_string);
 
     //limits.hpp
-    m.attr("robot_positions_min")       = franka_o80::robot_positions_min;
-    m.attr("robot_positions_max")       = franka_o80::robot_positions_max;
-    m.attr("robot_velocities_max")      = franka_o80::robot_velocities_max;
-    m.attr("robot_accelerations_max")   = franka_o80::robot_accelerations_max;
-    m.attr("robot_jerks_max")           = franka_o80::robot_jerks_max;
-    m.attr("robot_torques_max")         = franka_o80::robot_torques_max;
-    m.attr("robot_dtorques_max")        = franka_o80::robot_dtorques_max;
+    m.attr("joint_position_min")        = franka_o80::joint_position_min;
+    m.attr("joint_position_max")        = franka_o80::joint_position_max;
+    m.attr("joint_velocity_max")        = franka_o80::joint_velocity_max;
+    m.attr("joint_acceleration_max")    = franka_o80::joint_acceleration_max;
+    m.attr("joint_jerk_max")            = franka_o80::joint_jerk_max;
+    m.attr("joint_torque_max")          = franka_o80::joint_torque_max;
+    m.attr("joint_dtorque_max")         = franka_o80::joint_dtorque_max;
     m.attr("actuator_number")           = franka_o80::actuator_number;
     m.attr("queue_size")                = franka_o80::queue_size;
 
@@ -89,6 +89,10 @@ PYBIND11_MODULE(franka_o80, m)
     m.attr("cartesian_orientation") = franka_o80::cartesian_orientation;
     m.def("cartesian_velocity",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_velocity[i]; });
     m.def("cartesian_rotation",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_rotation[i]; });
+    m.def("joint_stiffness",        [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::joint_stiffness[i]; });
+    m.def("joint_damping",          [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::joint_damping[i]; });
+    m.def("cartesian_stiffness",    [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_stiffness[i]; });
+    m.def("cartesian_damping",      [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_damping[i]; });
 
     //kinematics.hpp
     m.def("joint_to_cartesian", &franka_o80::joint_to_cartesian);

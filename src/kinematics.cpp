@@ -88,7 +88,12 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
         error = pinocchio::log6(wtf).toVector();
         if (error.norm() < tolerance)
         {
-            for (size_t j = 0; j < 7; j++) states.set(joint_position[j], result(j));
+            for (size_t j = 0; j < 7; j++)
+            {
+                if (result(j) > franka_o80::joint_position_max[j] || result(j) < franka_o80::joint_position_min[j])
+                    throw std::runtime_error("franka_o80::cartesian_to_joint: Limit check failed");
+                states.set(joint_position[j], result(j));
+            }
             return;
         }
         pinocchio::computeJointJacobian(Kinematics::model_, Kinematics::data_, result, Kinematics::robot_joint_ids_[6], jacobian);
@@ -97,5 +102,5 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
         gradient.noalias() = -jacobian.transpose() * jacobian2.ldlt().solve(error);
         result = pinocchio::integrate(Kinematics::model_, result, gradient * step);
     }
-    throw std::runtime_error("franka_o80::to_joint: Number of iterations exeeded");
+    throw std::runtime_error("franka_o80::cartesian_to_joint: Number of iterations exeeded");
 }

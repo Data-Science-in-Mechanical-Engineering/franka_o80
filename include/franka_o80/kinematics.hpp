@@ -2,6 +2,7 @@
 
 #include "states.hpp"
 #include "actuator.hpp"
+#include "limits.hpp"
 #include <array>
 #include <limits>
 #include "pinocchio/parsers/urdf.hpp"
