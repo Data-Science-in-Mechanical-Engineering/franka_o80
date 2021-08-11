@@ -55,3 +55,8 @@ cmake --build .
 
 ### Documentation
 [Doxygen](https://www.doxygen.nl) documentation is provided.
+
+### Contributors
+ - Kyrylo Sovailo
+ - Vincent Berenz (original `o80`)
+ - Models from `model` were generated from `franka_description` package from ROS
