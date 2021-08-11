@@ -42,6 +42,7 @@ private:
 	DriverInput input_;             //Input. Read by robot and gripper, written by external threads. Error is ignored
     DriverOutput output_;           //Output. Written by robot and gripper, read by external threads. Error is also read by robot and gripper
     bool input_finished_ = false;   //Input finished flag. Read by robot and gripper, set by external threads
+    size_t input_count_ = 0;        //Counter of .set calls. Read by gripper, edited by external threads.
 
     void robot_write_output_(const franka::RobotState &robot_state);
     void robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);

@@ -82,6 +82,7 @@ PYBIND11_MODULE(franka_o80, m)
     m.attr("control_reset")         = franka_o80::control_reset;
     m.attr("gripper_width")         = franka_o80::gripper_width;
     m.attr("gripper_temperature")   = franka_o80::gripper_temperature;
+    m.attr("gripper_force")         = franka_o80::gripper_force;
     m.def("joint_position",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_position[i]; });
     m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_velocity[i]; });
     m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_torque[i]; });

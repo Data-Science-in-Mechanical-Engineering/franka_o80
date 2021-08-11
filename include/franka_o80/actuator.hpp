@@ -3,7 +3,7 @@
 namespace franka_o80
 {
 ///Actuator number
-static const int actuator_number = 62;
+static const int actuator_number = 63;
 
 ///Actuator number corresponding to control mode. Needs to be set to one of `Mode` values
 static const int control_mode        = 0;
@@ -16,6 +16,8 @@ static const int control_reset       = 2;
 static const int gripper_width       = 3;
 ///Actuator number corresponding to gripper temperature
 static const int gripper_temperature = 4;
+///Actuator number corresponding to gripper force
+static const int gripper_force       = 62;
 
 ///Actuator numbers corresponding to robot angular positions
 static const int joint_position[7]  = {  5,  6,  7,  8,  9, 10, 11 };

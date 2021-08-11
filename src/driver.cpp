@@ -307,7 +307,7 @@ void franka_o80::Driver::robot_cartesian_velocity_control_function_(const franka
 
 void franka_o80::Driver::robot_control_function_()
 {
-    Error output_error = Error::ok;
+    Error output_error = Error::ok; //One round error, exists here because loop goes after communication
 	while (true)
 	{
         bool input_reset;
@@ -325,7 +325,7 @@ void franka_o80::Driver::robot_control_function_()
             input_error = output_.get(control_error).get_error();
             
             //Writing output
-            if (input_reset) output_.set(control_error, Error::ok);
+            if (input_reset) { output_.set(control_error, Error::ok); input_error = Error::ok; }
             else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
 		}
 
@@ -349,7 +349,8 @@ void franka_o80::Driver::robot_control_function_()
 
             //Entering loop
             Driver *driver = this;
-            if (input_reset || input_error != Error::ok || output_error != Error::ok || input_mode == Mode::invalid) robot_->control(
+            output_error = Error::ok;
+            if (input_reset || input_error != Error::ok || input_mode == Mode::invalid) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
                     franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -443,8 +444,6 @@ void franka_o80::Driver::robot_control_function_()
                     driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
                     return cartesian_velocity;
                 });
-
-            output_error = Error::ok;
 		}
         catch (franka::CommandException &e)
         {
@@ -488,37 +487,45 @@ void franka_o80::Driver::robot_control_function_()
 
 void franka_o80::Driver::gripper_control_function_()
 {
-    Error output_error = Error::ok;
+    Error output_error = Error::ok; //one round error
+    double previous_input_width = std::numeric_limits<double>::quiet_NaN();
+    size_t previous_input_count = 0;
+    double previous_grasp_target = std::numeric_limits<double>::quiet_NaN();
+    double previous_grasp_result = std::numeric_limits<double>::quiet_NaN();
     while (true)
     {
-        //Measuring state
-        double width;
-        double temperature;
+        //Reading state
+        double output_width;
+        double output_temperature;
         try
         {
 		    franka::GripperState state = gripper_->readOnce(); 
-            width = state.width;
-            temperature = state.temperature;
-            output_error = Error::ok;
+            output_width = state.width;
+            output_temperature = state.temperature;
         }
         catch (franka::NetworkException &e)
         {
-            output_error = Error::gripper_network_exception;
+            if (output_error == Error::ok) output_error = Error::gripper_network_exception;
+            std::cout << e.what() << std::endl;
         }
-        catch (franka::InvalidOperationException)
+        catch (franka::InvalidOperationException &e)
         {
-            output_error = Error::gripper_invalid_operation_exception;
+            if (output_error == Error::ok) output_error = Error::gripper_invalid_operation_exception;
+            std::cout << e.what() << std::endl;
         }
         catch (...)
         {
-            output_error = Error::gripper_invalid_operation_exception;
+            if (output_error == Error::ok) output_error = Error::gripper_invalid_operation_exception;
         }
 
+        //Communicating
         bool input_reset;
         Mode input_mode;
         bool input_finished;
         Error input_error;
+        size_t input_count;
         double input_width;
+        double input_force;
         {
             //Locking
             std::lock_guard<std::mutex> guard(input_output_mutex_);
@@ -528,23 +535,40 @@ void franka_o80::Driver::gripper_control_function_()
             input_mode = input_.get(control_mode).get_mode();
             input_finished = input_finished_;
             input_error = output_.get(control_error).get_error();
+            input_count = input_count;
             input_width = input_.get(gripper_width).get_real();
+            input_force = input_.get(gripper_force).get_real();
 
             //Writing output
-            output_.set(gripper_width, width);
-            output_.set(gripper_temperature, temperature);
-            output_.set(control_mode, mode_);
+            output_.set(gripper_width, output_width);
+            output_.set(gripper_temperature, output_temperature);
 			output_.set(control_reset, input_reset ? 1.0 : 0.0);
-			if (input_reset) output_.set(control_error, Error::ok);
+            output_.set(gripper_force, input_force);
+			if (input_reset) { output_.set(control_error, Error::ok); input_error = Error::ok; }
             else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
         }
 		
-        //Acting
+        //Checking state
+        output_error = Error::ok;
         if (input_finished) return;
-        else if (!input_reset && input_error == Error::ok && input_mode != Mode::invalid) try
+        if (input_reset || input_error != Error::ok || input_mode == Mode::invalid) continue;
+        if (previous_input_width != previous_input_width) { previous_input_width = input_width; previous_input_count = input_count; continue; }
+
+        //Acting
+        if (previous_input_width == input_width)  continue;
+        Driver *driver = this;
+        double target = input_width > previous_input_width ? 0.1 : 0.0;
+        if (target == previous_grasp_target && abs(input_width - previous_grasp_result) < 0.005) continue; //Magic number
+        double speed = abs(input_width - previous_input_width) * 1000.0 / (input_count - previous_input_count);
+        if (speed > 0.1) speed = 0.1; //Maximal speed, magic number
+        previous_input_count = input_count;
+        previous_input_width = input_width;
+        try
         {
-		    if (input_width == input_width) gripper_->move(input_width, 0.1); //Fix magic number
-            output_error = Error::ok;
+            gripper_->grasp(target, speed, input_force, 0.1, 0.1);
+            franka::GripperState state = gripper_->readOnce(); 
+            previous_grasp_target = target;
+            previous_grasp_result = state.width;
         }
         catch (franka::NetworkException &e)
         {
@@ -585,6 +609,7 @@ void franka_o80::Driver::start()
 
     //Starting gripper
     gripper_ = std::unique_ptr<franka::Gripper>(new franka::Gripper(ip_));
+    gripper_->homing();
 	franka::GripperState gripper_state = gripper_->readOnce();
     output_.set(gripper_width, gripper_state.width);
     output_.set(gripper_temperature, gripper_state.temperature);
@@ -596,6 +621,7 @@ void franka_o80::Driver::set(const DriverInput &input)
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
         input_ = input;
+        input_count_++;
     }
 }
 
@@ -619,5 +645,7 @@ void franka_o80::Driver::stop()
         input_finished_ = true;
     }
     if (robot_control_thread_.joinable()) robot_control_thread_.join();
+    
+    gripper_->stop();
     if (gripper_control_thread_.joinable()) gripper_control_thread_.join();
 }
