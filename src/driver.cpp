@@ -8,6 +8,8 @@ void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_sta
         output_.set(joint_position[i], robot_state.q[i]);
         output_.set(joint_velocity[i], robot_state.dq[i]);
         output_.set(joint_torque[i], robot_state.tau_J[i]);
+        output_.set(joint_stiffness[i], input_.get(joint_stiffness[i]));
+        output_.set(joint_damping[i], input_.get(joint_damping[i]));
     }
 
     //Cartesian
@@ -23,7 +25,14 @@ void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_sta
         output_.set(cartesian_orientation, orientation);
         output_.set(cartesian_velocity[i], velocity(i));
         output_.set(cartesian_rotation[i], velocity(i + 3));
+        output_.set(cartesian_stiffness[i], input_.get(cartesian_stiffness[i]));
+        output_.set(cartesian_damping[i], input_.get(cartesian_damping[i]));
+        output_.set(cartesian_stiffness[i + 3], input_.get(cartesian_stiffness[i + 3]));
+        output_.set(cartesian_damping[i + 3], input_.get(cartesian_damping[i + 3]));
     }
+
+    //Other
+    output_.set(control_reset, input_.get(control_reset).get_real() > 0.0 ? 1.0 : 0.0);
 }
 
 void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities)
@@ -51,7 +60,6 @@ void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState 
     //Writing output
     robot_write_output_(robot_state);
     output_.set(control_mode, Mode::invalid);
-    output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
 
@@ -314,6 +322,8 @@ void franka_o80::Driver::robot_control_function_()
         Mode input_mode;
 		bool input_finished;
         Error input_error;
+        std::array<double, 7> input_joint_stiffness;
+        std::array<double, 6> input_cartesian_stiffness;
 		{
 			//Locking
 			std::lock_guard<std::mutex> guard(input_output_mutex_);
@@ -323,10 +333,12 @@ void franka_o80::Driver::robot_control_function_()
 			input_mode = input_.get(control_mode).get_mode();
 			input_finished = input_finished_;
             input_error = output_.get(control_error).get_error();
+            for (size_t i = 0; i < 7; i++) input_joint_stiffness[i] = input_.get(joint_stiffness[i]).get_real();
+            for (size_t i = 0; i < 6; i++) input_cartesian_stiffness[i] = input_.get(cartesian_stiffness[i]).get_real();
             
             //Writing output
             if (input_reset) { output_.set(control_error, Error::ok); input_error = Error::ok; }
-            else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
+            else if (input_error == Error::ok && output_error != Error::ok) { output_.set(control_error, output_error); input_error = output_error; }
 		}
 
         //Entering control loop
@@ -336,16 +348,13 @@ void franka_o80::Driver::robot_control_function_()
             if (input_finished) return;
             else if (input_reset) robot_->automaticErrorRecovery();
             
-            //Setting impedances
-            std::array<double, 7> joint_stiffness_array;
-            for (size_t i = 0; i < 7; i++) joint_stiffness_array[i] = input_.get(joint_stiffness[i]).get_real();
-            joint_stiffness_ = Eigen::Matrix<double, 7, 1>::Map(&joint_stiffness_array[0]);
-            robot_->setJointImpedance(joint_stiffness_array);
+            //Setting per-loop constants
+            joint_stiffness_ = Eigen::Matrix<double, 7, 1>::Map(&input_joint_stiffness[0]);
+            robot_->setJointImpedance(input_joint_stiffness);
+            cartesian_stiffness_ = Eigen::Matrix<double, 6, 1>::Map(&input_cartesian_stiffness[0]);
+            robot_->setCartesianImpedance(input_cartesian_stiffness);
+            mode_ = input_mode;
 
-            std::array<double, 6> cartesian_stiffness_array;
-            for (size_t i = 0; i < 6; i++) cartesian_stiffness_array[i] = input_.get(cartesian_stiffness[i]).get_real();
-            cartesian_stiffness_ = Eigen::Matrix<double, 6, 1>::Map(&cartesian_stiffness_array[0]);
-            robot_->setCartesianImpedance(cartesian_stiffness_array);
 
             //Entering loop
             Driver *driver = this;
@@ -535,7 +544,7 @@ void franka_o80::Driver::gripper_control_function_()
             input_mode = input_.get(control_mode).get_mode();
             input_finished = input_finished_;
             input_error = output_.get(control_error).get_error();
-            input_count = input_count;
+            input_count = input_count_;
             input_width = input_.get(gripper_width).get_real();
             input_force = input_.get(gripper_force).get_real();
 
@@ -545,43 +554,49 @@ void franka_o80::Driver::gripper_control_function_()
 			output_.set(control_reset, input_reset ? 1.0 : 0.0);
             output_.set(gripper_force, input_force);
 			if (input_reset) { output_.set(control_error, Error::ok); input_error = Error::ok; }
-            else if (input_error == Error::ok && output_error != Error::ok) output_.set(control_error, output_error);
+            else if (input_error == Error::ok && output_error != Error::ok) { output_.set(control_error, output_error); input_error = output_error; }
         }
 		
         //Checking state
         output_error = Error::ok;
         if (input_finished) return;
-        if (input_reset || input_error != Error::ok || input_mode == Mode::invalid) continue;
-        if (previous_input_width != previous_input_width) { previous_input_width = input_width; previous_input_count = input_count; continue; }
+        if (!input_reset && input_error == Error::ok && input_mode != Mode::invalid
+        && previous_input_width == previous_input_width
+        && previous_input_width != input_width)
+        {
+            //Acting
+            Driver *driver = this;
+            double target = input_width > previous_input_width ? 0.1 : 0.0;
+            if (target != previous_grasp_target || abs(input_width - previous_grasp_result) > 0.005) //Magic number
+            {
+                double speed = abs(input_width - previous_input_width) * 1000.0 / (input_count - previous_input_count);
+                //std::cout << speed << " " << input_width << " " << previous_input_width << " " << input_count - previous_input_count << std::endl;
+                if (speed > 0.1) speed = 0.1; //Maximal speed, magic number
+                input_width = std::numeric_limits<double>::quiet_NaN(); //to invalidate previous_input_width later
 
-        //Acting
-        if (previous_input_width == input_width)  continue;
-        Driver *driver = this;
-        double target = input_width > previous_input_width ? 0.1 : 0.0;
-        if (target == previous_grasp_target && abs(input_width - previous_grasp_result) < 0.005) continue; //Magic number
-        double speed = abs(input_width - previous_input_width) * 1000.0 / (input_count - previous_input_count);
-        if (speed > 0.1) speed = 0.1; //Maximal speed, magic number
+                try
+                {
+                    gripper_->grasp(target, speed, input_force, 0.1, 0.1);
+                    franka::GripperState state = gripper_->readOnce();
+                    previous_grasp_target = target;
+                    previous_grasp_result = state.width;
+                }
+                catch (franka::NetworkException &e)
+                {
+                    output_error = Error::gripper_network_exception;
+                }
+                catch (franka::InvalidOperationException)
+                {
+                    output_error = Error::gripper_invalid_operation_exception;
+                }
+                catch (...)
+                {
+                    output_error = Error::gripper_invalid_operation_exception;
+                }
+            }
+        }
         previous_input_count = input_count;
         previous_input_width = input_width;
-        try
-        {
-            gripper_->grasp(target, speed, input_force, 0.1, 0.1);
-            franka::GripperState state = gripper_->readOnce(); 
-            previous_grasp_target = target;
-            previous_grasp_result = state.width;
-        }
-        catch (franka::NetworkException &e)
-        {
-            output_error = Error::gripper_network_exception;
-        }
-        catch (franka::InvalidOperationException)
-        {
-            output_error = Error::gripper_invalid_operation_exception;
-        }
-        catch (...)
-        {
-            output_error = Error::gripper_invalid_operation_exception;
-        }
     }
 }
 

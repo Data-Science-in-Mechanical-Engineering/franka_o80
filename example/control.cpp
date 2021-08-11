@@ -23,6 +23,7 @@ public:
     bool commands_count(const std::string commands) const;
     void commands_insert(const std::string commands);
     void command_echo();
+    void command_pass();
     void command_default();
     void command_joint_position(char command, char sign, double value);
     void command_cartesian_position(char command, char sign, double value);
@@ -55,10 +56,10 @@ void Control::help()
     std::cout << "t     - Execution time.           Syntax: t     +/-/= second"                 << std::endl;
     std::cout << "i     - Impedances.               Syntax: i     +/-/= joint  trans  rot"      << std::endl;
     std::cout << "d     - Default position.         Syntax: d"                                  << std::endl;
+    std::cout << "p     - Pass.                     Syntax: p"                                  << std::endl;
     std::cout << "e     - Echo.                     Syntax: e"                                  << std::endl;
     std::cout << "f     - Finish.                   Syntax: f"                                  << std::endl;
     std::cout << "#     - Comment."                                                             << std::endl;
-    //std::cout << "p     - Pass.                     Syntax: p"                                  << std::endl;
 }
 
 Control::Control(std::string id)
@@ -117,10 +118,23 @@ void Control::command_echo()
     std::cout << "cartesian_impedance  :"; std::cout << impedances_[1] << " " << impedances_[2] << std::endl;
 }
 
+void Control::command_pass()
+{
+    //Check contradictions
+    if (commands_count("1234567 xyzq p"))
+    {
+        std::cout << "Сontradictory command" << std::endl;
+        return;
+    }
+
+    //Add commands
+    commands_insert("p");
+}
+
 void Control::command_default()
 {
     //Check contradictions
-    if (commands_count("1234567 xyzq"))
+    if (commands_count("1234567 xyzq p"))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
@@ -135,7 +149,7 @@ void Control::command_default()
 void Control::command_joint_position(char command, char sign, double value)
 {
     //Check contradictions
-    if (commands_count("xyzq") || commands_count(std::string(1, command)))
+    if (commands_count("xyzq p") || commands_count(std::string(1, command)))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
@@ -163,18 +177,18 @@ void Control::command_joint_position(char command, char sign, double value)
 void Control::command_cartesian_position(char command, char sign, double value)
 {
     //Check contradictions
-    if (commands_count("1234567") || commands_count(std::string(1, command)))
+    if (commands_count("1234567 p") || commands_count(std::string(1, command)))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
     }
 
     //Create state
-    size_t actuator = franka_o80::joint_position[command - 'x'];
+    size_t actuator = franka_o80::cartesian_position[command - 'x'];
     franka_o80::State state;
-    if (sign == '+') state.set_real(target_.get(actuator).get_real() + M_PI * value / 180.0);
-    else if (sign == '-') state.set_real(target_.get(actuator).get_real() - M_PI * value / 180.0);
-    else state.set_real(M_PI * value / 180.0);
+    if (sign == '+') state.set_real(target_.get(actuator).get_real() + value);
+    else if (sign == '-') state.set_real(target_.get(actuator).get_real() - value);
+    else state.set_real(value);
 
     //Check
     try
@@ -197,7 +211,7 @@ void Control::command_cartesian_position(char command, char sign, double value)
 void Control::command_cartesian_orientation(char command, char sign, const double values[4])
 {
     //Check contradictions
-    if (commands_count("1234567") || commands_count(std::string(1, 'q')))
+    if (commands_count("1234567 p") || commands_count("q"))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
@@ -224,14 +238,14 @@ void Control::command_cartesian_orientation(char command, char sign, const doubl
     }
     
     //Add command
-    commands_insert(std::string(1, 'q'));
+    commands_insert("q");
     target_.set(franka_o80::cartesian_orientation, state);
 }
 
 void Control::command_gripper_width(char command, char sign, double value)
 {
     //Check contradictions
-    if (commands_count(std::string(1, 'g')))
+    if (commands_count("g p"))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
@@ -244,7 +258,7 @@ void Control::command_gripper_width(char command, char sign, double value)
     else state.set_real(value);
 
     //Add command
-    commands_insert(std::string(1, 'g'));
+    commands_insert("g");
     target_.set(franka_o80::gripper_width, state);
 }
 
@@ -257,7 +271,6 @@ void Control::command_gripper_force(char command, char sign, double value)
     else state.set_real(value);
 
     //Add command
-    commands_insert(std::string(1, 'g'));
     target_.set(franka_o80::gripper_force, state);
     front_->add_command(franka_o80::gripper_force, state, o80::Mode::QUEUE);
 }
@@ -283,15 +296,15 @@ void Control::command_impedance(char command, char sign, const double values[3])
 
     for (size_t i = 0; i < 7; i++)
     {
-        front_->add_command(franka_o80::joint_stiffness[i], target_.get(franka_o80::joint_stiffness[i]).get_real() * impedances_[0], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::joint_damping[i], target_.get(franka_o80::joint_damping[i]).get_real() * sqrt(impedances_[0]), o80::Mode::QUEUE);
+        front_->add_command(franka_o80::joint_stiffness[i], franka_o80::default_states().get(franka_o80::joint_stiffness[i]).get_real() * impedances_[0], o80::Mode::QUEUE);
+        front_->add_command(franka_o80::joint_damping[i], franka_o80::default_states().get(franka_o80::joint_damping[i]).get_real() * sqrt(impedances_[0]), o80::Mode::QUEUE);
     }
     for (size_t i = 0; i < 3; i++)
     {
-        front_->add_command(franka_o80::cartesian_stiffness[i], target_.get(franka_o80::cartesian_stiffness[i]).get_real() * impedances_[1], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_damping[i], target_.get(franka_o80::cartesian_damping[i]).get_real() * sqrt(impedances_[1]), o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_stiffness[i + 3], target_.get(franka_o80::cartesian_stiffness[i + 3]).get_real() * impedances_[2], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_damping[i + 3], target_.get(franka_o80::cartesian_damping[i + 3]).get_real() * sqrt(impedances_[2]), o80::Mode::QUEUE);
+        front_->add_command(franka_o80::cartesian_stiffness[i], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i]).get_real() * impedances_[1], o80::Mode::QUEUE);
+        front_->add_command(franka_o80::cartesian_damping[i], franka_o80::default_states().get(franka_o80::cartesian_damping[i]).get_real() * sqrt(impedances_[1]), o80::Mode::QUEUE);
+        front_->add_command(franka_o80::cartesian_stiffness[i + 3], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i + 3]).get_real() * impedances_[2], o80::Mode::QUEUE);
+        front_->add_command(franka_o80::cartesian_damping[i + 3], franka_o80::default_states().get(franka_o80::cartesian_damping[i + 3]).get_real() * sqrt(impedances_[2]), o80::Mode::QUEUE);
     }
 }
 
@@ -319,11 +332,12 @@ void Control::execute(std::string input)
     case Parser::wait_command:
     {
         if (*p == '\0' || *p == '#') return;
-        if (*p == '\t' || *p == ' ') { p++; }
-        if (*p == 'd')               { p++; command_default(); }
-        if (*p == 'e')               { p++; command_echo(); }
-        if (*p == 'f')               { finish_ = true;  return; }
-        if (std::strchr("1234567 xyzqr g kti", *p) == nullptr) { help(); return; }
+        else if (*p == '\t' || *p == ' ') { p++; }
+        else if (*p == 'd')               { p++; command_default(); }
+        else if (*p == 'e')               { p++; command_echo(); }
+        else if (*p == 'p')               { p++; command_pass(); }
+        else if (*p == 'f')               { finish_ = true;  return; }
+        else if (std::strchr("1234567 xyzqr g kti", *p) == nullptr) { help(); return; }
         else { command = *p++; parser = Parser::wait_sign; }
         break;
     }
@@ -344,7 +358,7 @@ void Control::execute(std::string input)
         if (np == p) { help(); return; }
         p = np;
         if (std::strchr("qri", command)) { parser = Parser::wait_value2; break; }
-        if (std::strchr("1234567", command) != nullptr) command_joint_position(command, sign, values[0]);
+        else if (std::strchr("1234567", command) != nullptr) command_joint_position(command, sign, values[0]);
         else if (std::strchr("xyz", command) != nullptr) command_cartesian_position(command, sign, values[0]);
         else if (command == 'g') command_gripper_width(command, sign, values[0]);
         else if (command == 'k') command_gripper_force(command, sign, values[0]);
@@ -372,7 +386,7 @@ void Control::execute(std::string input)
 
     case Parser::wait_value3:
     {
-        if (*p == ' ' || *p == '\t') { p++; break;; }
+        if (*p == ' ' || *p == '\t') { p++; break; }
         char *np;
         values[2] = strtod(p, &np);
         if (np == p) { help(); return; }
@@ -421,6 +435,10 @@ void Control::loop()
         if (commands_count("g"))
         {
             front_->add_command(franka_o80::gripper_width, target_.get(franka_o80::gripper_width), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+        }
+        if (commands_count("p"))
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1000 * execution_time_)));
         }
         if (commands_count("1234567 xyzq g")) front_->pulse_and_wait();
         commands_.clear();

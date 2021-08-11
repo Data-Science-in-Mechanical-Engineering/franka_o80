@@ -270,7 +270,7 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
         double value_difference = abs(target_state.value_.real - start_state.value_.real);
         double duration_us = value_difference / speed.value;
         if (time_difference_us > duration_us) return target_state;
-        else return start_state.value_.real + (time_difference_us / duration_us) * (target_state.value_.real - start_state.value_.real);
+        else return start_state.value_.real + time_difference_us * (target_state.value_.real - start_state.value_.real) / duration_us;
     }
     else if (start_state.typ_ == Type::quaternion)
     {
@@ -310,7 +310,7 @@ franka_o80::State franka_o80::State::intermediate_state(const o80::TimePoint &st
     if (time_difference_us > duration.value) return target_state;
     if (start_state.typ_ == Type::real)
     {
-        return start_state.value_.real + (time_difference_us / duration.value) * (target_state.value_.real - start_state.value_.real);
+        return (start_state.value_.real * (duration.value - time_difference_us) + target_state.value_.real * time_difference_us) / duration.value;
     }
     else if (start_state.typ_ == Type::quaternion)
     {
@@ -340,7 +340,7 @@ franka_o80::State franka_o80::State::intermediate_state(long int start_iteration
     if (current_iteration >= iteration.value) return target_state;
     if (start_state.typ_ == Type::real)
     {
-        return start_state.value_.real + (static_cast<double>(current_iteration - start_iteration) / static_cast<double>(iteration.value - start_iteration)) * (target_state.value_.real - start_state.value_.real);
+        return (start_state.value_.real * (current_iteration - start_iteration) + target_state.value_.real * (iteration.value - current_iteration)) / (iteration.value - start_iteration);
     }
     else if (start_state.typ_ == Type::quaternion)
     {
