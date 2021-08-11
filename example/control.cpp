@@ -14,10 +14,8 @@ private:
     franka_o80::States target_;
     std::set<char> commands_;
     double impedances_[3] = { 1.0, 1.0, 1.0 };
-    double execution_time_  = 5.0;
-    bool cartesian_mode_    = false; //If true, cartesian positions are valid. If false, joint positions are valid
-    bool command_added_     = false;
-    bool finish_            = false;
+    double execution_time_ = 5.0;
+    bool finish_ = false;
 
 public:
     static void help();
@@ -29,6 +27,7 @@ public:
     void command_joint_position(char command, char sign, double value);
     void command_cartesian_position(char command, char sign, double value);
     void command_cartesian_orientation(char command, char sign, const double values[4]);
+    void command_gripper_force(char command, char sign, double value);
     void command_gripper_width(char command, char sign, double value);
     void command_impedance(char command, char sign, const double values[3]);
     void execute(std::string input);
@@ -52,13 +51,14 @@ void Control::help()
     std::cout << "q     - Rotation in quaterions.   Syntax: q     +/-/= w      x      y      z" << std::endl;
     std::cout << "r     - Rotation in Euler angles. Syntax: r     +/-/= degree degree degree"   << std::endl;
     std::cout << "g     - Gripper width.            Syntax: g     +/-/= meter"                  << std::endl;
+    std::cout << "k     - Gripper force.            Syntax: k     +/-/= newton"                 << std::endl;
     std::cout << "t     - Execution time.           Syntax: t     +/-/= second"                 << std::endl;
     std::cout << "i     - Impedances.               Syntax: i     +/-/= joint  trans  rot"      << std::endl;
-    std::cout << "p     - Pass.                     Syntax: p"                                  << std::endl;
     std::cout << "d     - Default position.         Syntax: d"                                  << std::endl;
     std::cout << "e     - Echo.                     Syntax: e"                                  << std::endl;
     std::cout << "f     - Finish.                   Syntax: f"                                  << std::endl;
     std::cout << "#     - Comment."                                                             << std::endl;
+    //std::cout << "p     - Pass.                     Syntax: p"                                  << std::endl;
 }
 
 Control::Control(std::string id)
@@ -67,6 +67,9 @@ Control::Control(std::string id)
     front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
     front_->reset_next_index();
     target_ = front_->wait_for_next().get_observed_states();
+    impedances_[0] = target_.get(franka_o80::joint_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::joint_stiffness[0]).get_real();
+    impedances_[1] = target_.get(franka_o80::cartesian_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[0]).get_real();
+    impedances_[2] = target_.get(franka_o80::cartesian_stiffness[3]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[3]).get_real();
 }
 
 bool Control::commands_count(const std::string commands) const
@@ -100,71 +103,42 @@ void Control::command_echo()
     //Gripper
     std::cout << "gripper_width        : " << states.get(franka_o80::gripper_width).get_real() << std::endl;
     std::cout << "gripper_temperature  : " << states.get(franka_o80::gripper_temperature).get_real() << std::endl;
+    std::cout << "gripper_force        : " << states.get(franka_o80::gripper_force).get_real() << std::endl;
 
     //Robot joints
     std::cout << "joint_position       :"; for (size_t i = 0; i < 7; i++) std::cout << " " << 180.0 * states.get(franka_o80::joint_position[i]).get_real() / M_PI; std::cout << std::endl;
     std::cout << "joint_torque         :"; for (size_t i = 0; i < 7; i++) std::cout << " " << states.get(franka_o80::joint_torque[i]).get_real(); std::cout << std::endl;
+    std::cout << "joint_impedance      :"; std::cout << impedances_[0] << std::endl;
 
     //Robot cartesian
     std::cout << "cartesian_position   :"; for (size_t i = 0; i < 3; i++) std::cout << " " << states.get(franka_o80::cartesian_position[i]).get_real(); std::cout << std::endl;
     std::cout << "cartesian_orientation:"; for (size_t i = 0; i < 4; i++) std::cout << " " << states.get(franka_o80::cartesian_orientation).get_wxyz()[i];
-    std::cout << " ("; for (size_t i = 0; i < 3; i++) std::cout << " " << 180.0 * states.get(franka_o80::cartesian_orientation).get_euler()[i] / M_PI; std::cout << " )" << std::endl;    
+    std::cout << " ("; for (size_t i = 0; i < 3; i++) std::cout << " " << 180.0 * states.get(franka_o80::cartesian_orientation).get_euler()[i] / M_PI; std::cout << " )" << std::endl;
+    std::cout << "cartesian_impedance  :"; std::cout << impedances_[1] << " " << impedances_[2] << std::endl;
 }
 
 void Control::command_default()
 {
     //Check contradictions
-    if (commands_count("1234567 xyz q"))
+    if (commands_count("1234567 xyzq"))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
     }
 
-    //Switch to cartesian mode
-    if (!cartesian_mode_)
-    {
-        franka_o80::joint_to_cartesian(target_);
-        for (size_t i = 0; i < 3; i++)
-        {
-            front_->add_command(franka_o80::cartesian_position[i], target_.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
-        }
-        front_->add_command(franka_o80::cartesian_orientation, target_.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
-        cartesian_mode_ = true;
-        front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
-    }
-
-    commands_insert("xyz q");
-    command_added_ = true;
-    for (size_t i = 0; i < 3; i++)
-    {
-        target_.set(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]));
-        front_->add_command(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]), o80::Duration_us::seconds(execution_time_),  o80::Mode::QUEUE);
-    }
+    //Add commands
+    commands_insert("xyzq");
+    for (size_t i = 0; i < 3; i++) target_.set(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]));
     target_.set(franka_o80::cartesian_orientation, franka_o80::default_states().get(franka_o80::cartesian_orientation));
-    front_->add_command(franka_o80::cartesian_orientation, franka_o80::default_states().get(franka_o80::cartesian_orientation), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
 }
 
 void Control::command_joint_position(char command, char sign, double value)
 {
     //Check contradictions
-    if (commands_count("xyz q") || commands_count(std::string(1, command)))
+    if (commands_count("xyzq") || commands_count(std::string(1, command)))
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
-    }
-
-    //Switch to joint mode
-    if (cartesian_mode_)
-    {
-        front_->reset_next_index();
-        franka_o80::States states = front_->wait_for_next().get_observed_states();
-        for (size_t i = 0; i < 7; i++)
-        {
-            target_.set(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]));
-            front_->add_command(franka_o80::joint_position[i], states.get(franka_o80::joint_position[i]), o80::Mode::QUEUE);
-        }
-        cartesian_mode_ = false;
-        front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
     }
 
     //Create actuator state
@@ -183,9 +157,7 @@ void Control::command_joint_position(char command, char sign, double value)
 
     //Add command
     commands_insert(std::string(1, command));
-    command_added_ = true;
     target_.set(actuator, state);
-    front_->add_command(actuator, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
 }
 
 void Control::command_cartesian_position(char command, char sign, double value)
@@ -195,19 +167,6 @@ void Control::command_cartesian_position(char command, char sign, double value)
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
-    }
-
-    //Switch to cartesian mode
-    if (!cartesian_mode_)
-    {
-        franka_o80::joint_to_cartesian(target_);
-        for (size_t i = 0; i < 3; i++)
-        {
-            front_->add_command(franka_o80::cartesian_position[i], target_.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
-        }
-        front_->add_command(franka_o80::cartesian_orientation, target_.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
-        cartesian_mode_ = true;
-        front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
     }
 
     //Create state
@@ -232,9 +191,7 @@ void Control::command_cartesian_position(char command, char sign, double value)
 
     //Add command
     commands_insert(std::string(1, command));
-    command_added_ = true;
     target_.set(actuator, state);
-    front_->add_command(actuator, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
 }
 
 void Control::command_cartesian_orientation(char command, char sign, const double values[4])
@@ -244,19 +201,6 @@ void Control::command_cartesian_orientation(char command, char sign, const doubl
     {
         std::cout << "Сontradictory command" << std::endl;
         return;
-    }
-
-    //Switch to cartesian mode
-    if (!cartesian_mode_)
-    {
-        franka_o80::joint_to_cartesian(target_);
-        for (size_t i = 0; i < 3; i++)
-        {
-            front_->add_command(franka_o80::cartesian_position[i], target_.get(franka_o80::cartesian_position[i]), o80::Mode::QUEUE);
-        }
-        front_->add_command(franka_o80::cartesian_orientation, target_.get(franka_o80::cartesian_orientation), o80::Mode::QUEUE);
-        cartesian_mode_ = true;
-        front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_cartesian_position, o80::Mode::QUEUE);
     }
 
     //Create state
@@ -281,9 +225,7 @@ void Control::command_cartesian_orientation(char command, char sign, const doubl
     
     //Add command
     commands_insert(std::string(1, 'q'));
-    command_added_ = true;
     target_.set(franka_o80::cartesian_orientation, state);
-    front_->add_command(franka_o80::cartesian_orientation, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
 }
 
 void Control::command_gripper_width(char command, char sign, double value)
@@ -303,28 +245,40 @@ void Control::command_gripper_width(char command, char sign, double value)
 
     //Add command
     commands_insert(std::string(1, 'g'));
-    command_added_ = true;
     target_.set(franka_o80::gripper_width, state);
-    front_->add_command(franka_o80::gripper_width, state, o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+}
+
+void Control::command_gripper_force(char command, char sign, double value)
+{
+    //Create state
+    franka_o80::State state;
+    if (sign == '+') state.set_real(target_.get(franka_o80::gripper_force).get_real() + value);
+    else if (sign == '-') state.set_real(target_.get(franka_o80::gripper_force).get_real() - value);
+    else state.set_real(value);
+
+    //Add command
+    commands_insert(std::string(1, 'g'));
+    target_.set(franka_o80::gripper_force, state);
+    front_->add_command(franka_o80::gripper_force, state, o80::Mode::QUEUE);
 }
 
 void Control::command_impedance(char command, char sign, const double values[3])
 {
     if (sign == '+')
     {
-        for (size_t i = 0; i < 3; i++) impedances_[i] = values[i];
+        for (size_t i = 0; i < 3; i++) impedances_[i] += values[i];
     }
     else if (sign == '-')
     {
-        for (size_t i = 0; i < 3; i++) impedances_[i] += values[i];
+        for (size_t i = 0; i < 3; i++) impedances_[i] -= values[i];
     }
     else
     {
-        for (size_t i = 0; i < 3; i++) impedances_[i] -= values[i];
+        for (size_t i = 0; i < 3; i++) impedances_[i] = values[i];
     }
     for (size_t i = 0; i < 3; i++)
     {
-        if (impedances_[i] < 1.0) impedances_[i] = 1.0;
+        if (impedances_[i] < 0.1) impedances_[i] = 0.1;
     }
 
     for (size_t i = 0; i < 7; i++)
@@ -369,7 +323,7 @@ void Control::execute(std::string input)
         if (*p == 'd')               { p++; command_default(); }
         if (*p == 'e')               { p++; command_echo(); }
         if (*p == 'f')               { finish_ = true;  return; }
-        if (std::strchr("1234567 xyz qr gti", *p) == nullptr) { help(); return; }
+        if (std::strchr("1234567 xyzqr g kti", *p) == nullptr) { help(); return; }
         else { command = *p++; parser = Parser::wait_sign; }
         break;
     }
@@ -393,6 +347,7 @@ void Control::execute(std::string input)
         if (std::strchr("1234567", command) != nullptr) command_joint_position(command, sign, values[0]);
         else if (std::strchr("xyz", command) != nullptr) command_cartesian_position(command, sign, values[0]);
         else if (command == 'g') command_gripper_width(command, sign, values[0]);
+        else if (command == 'k') command_gripper_force(command, sign, values[0]);
         else
         {
             if (sign == '+') execution_time_ += values[0];
@@ -450,9 +405,25 @@ void Control::loop()
         std::string input;
         std::getline(std::cin, input);
         execute(input);
+
+        if (commands_count("1234567"))
+        {
+            for (size_t i = 0; i < 7; i++)
+                front_->add_command(franka_o80::joint_position[i], target_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            franka_o80::joint_to_cartesian(target_);
+        }
+        if (commands_count("xyzq"))
+        {
+            franka_o80::cartesian_to_joint(target_);
+            for (size_t i = 0; i < 7; i++)
+                front_->add_command(franka_o80::joint_position[i], target_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+        }
+        if (commands_count("g"))
+        {
+            front_->add_command(franka_o80::gripper_width, target_.get(franka_o80::gripper_width), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+        }
+        if (commands_count("1234567 xyzq g")) front_->pulse_and_wait();
         commands_.clear();
-        if (command_added_) front_->pulse_and_wait();
-        command_added_ = false;
     }
 }
 

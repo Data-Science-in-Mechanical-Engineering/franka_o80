@@ -7,6 +7,8 @@ franka_o80::States franka_o80::default_states()
     states.values[franka_o80::control_mode] = Mode::invalid;
     states.values[franka_o80::control_error] = Error::ok;
     
+    states.values[franka_o80::gripper_force] = 1.0;
+
     states.values[franka_o80::joint_position[0]] = 0.0;
     states.values[franka_o80::joint_position[1]] = -M_PI / 4;
     states.values[franka_o80::joint_position[2]] = 0.0;
