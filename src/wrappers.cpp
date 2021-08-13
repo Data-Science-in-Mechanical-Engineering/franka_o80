@@ -31,7 +31,7 @@ PYBIND11_MODULE(franka_o80, m)
         .def("set_euler",       &franka_o80::State::set_euler)
         .def("set_mode",        &franka_o80::State::set_mode)
         .def("set_error",       &franka_o80::State::set_error)
-        .def("to_string", &franka_o80::State::to_string);
+        .def("to_string",       &franka_o80::State::to_string);
 
     //limits.hpp
     m.attr("joint_position_min")        = franka_o80::joint_position_min;
@@ -57,8 +57,7 @@ PYBIND11_MODULE(franka_o80, m)
 	.value("cartesian_position", franka_o80::Mode::cartesian_position)
 	.value("cartesian_velocity", franka_o80::Mode::cartesian_velocity)
 	.value("intelligent_position", franka_o80::Mode::intelligent_position)
-	.value("intelligent_cartesian_position", franka_o80::Mode::intelligent_cartesian_position)
-    .export_values();
+	.value("intelligent_cartesian_position", franka_o80::Mode::intelligent_cartesian_position);
 
     //error.hpp
     pybind11::enum_<franka_o80::Error>(m, "Error")
@@ -73,8 +72,7 @@ PYBIND11_MODULE(franka_o80, m)
     .value("gripper_command_exception", franka_o80::Error::gripper_command_exception)
     .value("gripper_network_exception", franka_o80::Error::gripper_network_exception)
     .value("gripper_invalid_operation_exception", franka_o80::Error::gripper_invalid_operation_exception)
-    .value("gripper_other_exception", franka_o80::Error::gripper_other_exception)
-    .export_values();
+    .value("gripper_other_exception", franka_o80::Error::gripper_other_exception);
 
     //actuator.hpp
     m.attr("control_mode")          = franka_o80::control_mode;

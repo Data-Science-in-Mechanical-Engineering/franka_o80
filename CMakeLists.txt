@@ -74,11 +74,15 @@ endif()
 add_executable(franka_o80_backend example/backend.cpp)
 target_link_libraries(franka_o80_backend PUBLIC franka_o80_cpp)
 
-# franka_o80_control
-add_executable(franka_o80_control example/control.cpp)
-target_link_libraries(franka_o80_control PUBLIC franka_o80_cpp)
 
 # franka_o80_selftest
 add_executable(franka_o80_selftest example/selftest.cpp)
 target_link_libraries(franka_o80_selftest PUBLIC franka_o80_cpp)
 target_link_libraries(franka_o80_selftest PUBLIC gtest)
+
+# franka_o80_control
+add_executable(franka_o80_control example/control.cpp)
+target_link_libraries(franka_o80_control PUBLIC franka_o80_cpp)
+
+# franka_o80_control.py
+configure_file(example/control.py franka_o80_control.py)
