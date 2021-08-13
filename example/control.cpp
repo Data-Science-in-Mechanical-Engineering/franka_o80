@@ -11,7 +11,7 @@ class Control
 {
 private:
     std::unique_ptr<franka_o80::FrontEnd> front_;
-    franka_o80::States target_;
+    franka_o80::States oldtarget_, newtarget_;
     std::set<char> commands_;
     double impedances_[3] = { 1.0, 1.0, 1.0 };
     double execution_time_ = 5.0;
@@ -67,10 +67,10 @@ Control::Control(std::string id)
 	front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
     front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
     front_->reset_next_index();
-    target_ = front_->wait_for_next().get_observed_states();
-    impedances_[0] = target_.get(franka_o80::joint_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::joint_stiffness[0]).get_real();
-    impedances_[1] = target_.get(franka_o80::cartesian_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[0]).get_real();
-    impedances_[2] = target_.get(franka_o80::cartesian_stiffness[3]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[3]).get_real();
+    oldtarget_ = front_->wait_for_next().get_observed_states();
+    impedances_[0] = oldtarget_.get(franka_o80::joint_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::joint_stiffness[0]).get_real();
+    impedances_[1] = oldtarget_.get(franka_o80::cartesian_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[0]).get_real();
+    impedances_[2] = oldtarget_.get(franka_o80::cartesian_stiffness[3]).get_real() / franka_o80::default_states().get(franka_o80::cartesian_stiffness[3]).get_real();
 }
 
 bool Control::commands_count(const std::string commands) const
@@ -142,8 +142,8 @@ void Control::command_default()
 
     //Add commands
     commands_insert("xyzq");
-    for (size_t i = 0; i < 3; i++) target_.set(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]));
-    target_.set(franka_o80::cartesian_orientation, franka_o80::default_states().get(franka_o80::cartesian_orientation));
+    for (size_t i = 0; i < 3; i++) newtarget_.set(franka_o80::cartesian_position[i], franka_o80::default_states().get(franka_o80::cartesian_position[i]));
+    newtarget_.set(franka_o80::cartesian_orientation, franka_o80::default_states().get(franka_o80::cartesian_orientation));
 }
 
 void Control::command_joint_position(char command, char sign, double value)
@@ -158,20 +158,13 @@ void Control::command_joint_position(char command, char sign, double value)
     //Create actuator state
     size_t actuator = franka_o80::joint_position[command - '1'];
     franka_o80::State state;
-    if (sign == '+') state.set_real(target_.get(actuator).get_real() + M_PI * value / 180.0);
-    else if (sign == '-') state.set_real(target_.get(actuator).get_real() - M_PI * value / 180.0);
+    if (sign == '+') state.set_real(newtarget_.get(actuator).get_real() + M_PI * value / 180.0);
+    else if (sign == '-') state.set_real(newtarget_.get(actuator).get_real() - M_PI * value / 180.0);
     else state.set_real(M_PI * value / 180.0);
-
-    //Check
-    if (state.get_real() > franka_o80::joint_position_max[command - '1'] || state.get_real() < franka_o80::joint_position_min[command - '1'])
-    {
-        std::cout << "Invalid joint position" << std::endl;
-        return;
-    }
 
     //Add command
     commands_insert(std::string(1, command));
-    target_.set(actuator, state);
+    newtarget_.set(actuator, state);
 }
 
 void Control::command_cartesian_position(char command, char sign, double value)
@@ -186,26 +179,13 @@ void Control::command_cartesian_position(char command, char sign, double value)
     //Create state
     size_t actuator = franka_o80::cartesian_position[command - 'x'];
     franka_o80::State state;
-    if (sign == '+') state.set_real(target_.get(actuator).get_real() + value);
-    else if (sign == '-') state.set_real(target_.get(actuator).get_real() - value);
+    if (sign == '+') state.set_real(newtarget_.get(actuator).get_real() + value);
+    else if (sign == '-') state.set_real(newtarget_.get(actuator).get_real() - value);
     else state.set_real(value);
-
-    //Check
-    try
-    {
-        franka_o80::States states = target_;
-        states.set(actuator, state);
-        franka_o80::cartesian_to_joint(states);
-    }
-    catch (...)
-    {
-        std::cout << "Invalid cartesian position" << std::endl;
-        return;
-    }
 
     //Add command
     commands_insert(std::string(1, command));
-    target_.set(actuator, state);
+    newtarget_.set(actuator, state);
 }
 
 void Control::command_cartesian_orientation(char command, char sign, const double values[4])
@@ -221,25 +201,12 @@ void Control::command_cartesian_orientation(char command, char sign, const doubl
     franka_o80::State state;
     if (command == 'q') state.set_wxyz(Eigen::Matrix<double, 4, 1>(values[0], values[1], values[2], values[3]));
     else state.set_euler(Eigen::Matrix<double, 3, 1>(M_PI * values[0] / 180, M_PI * values[1] / 180, M_PI * values[2] / 180));
-    if (sign == '+') state.set_quaternion(state.get_quaternion() * target_.get(franka_o80::cartesian_orientation).get_quaternion());
-    else if (sign == '-') state.set_quaternion(state.get_quaternion().inverse() * target_.get(franka_o80::cartesian_orientation).get_quaternion());
-
-    //Check
-    try
-    {
-        franka_o80::States states = target_;
-        states.set(franka_o80::cartesian_orientation, state);
-        franka_o80::cartesian_to_joint(states);
-    }
-    catch (...)
-    {
-        std::cout << "Invalid cartesian position" << std::endl;
-        return;
-    }
+    if (sign == '+') state.set_quaternion(state.get_quaternion() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
+    else if (sign == '-') state.set_quaternion(state.get_quaternion().inverse() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
     
     //Add command
     commands_insert("q");
-    target_.set(franka_o80::cartesian_orientation, state);
+    newtarget_.set(franka_o80::cartesian_orientation, state);
 }
 
 void Control::command_gripper_width(char command, char sign, double value)
@@ -253,25 +220,25 @@ void Control::command_gripper_width(char command, char sign, double value)
 
     //Create state
     franka_o80::State state;
-    if (sign == '+') state.set_real(target_.get(franka_o80::gripper_width).get_real() + value);
-    else if (sign == '-') state.set_real(target_.get(franka_o80::gripper_width).get_real() - value);
+    if (sign == '+') state.set_real(newtarget_.get(franka_o80::gripper_width).get_real() + value);
+    else if (sign == '-') state.set_real(newtarget_.get(franka_o80::gripper_width).get_real() - value);
     else state.set_real(value);
 
     //Add command
     commands_insert("g");
-    target_.set(franka_o80::gripper_width, state);
+    newtarget_.set(franka_o80::gripper_width, state);
 }
 
 void Control::command_gripper_force(char command, char sign, double value)
 {
     //Create state
     franka_o80::State state;
-    if (sign == '+') state.set_real(target_.get(franka_o80::gripper_force).get_real() + value);
-    else if (sign == '-') state.set_real(target_.get(franka_o80::gripper_force).get_real() - value);
+    if (sign == '+') state.set_real(newtarget_.get(franka_o80::gripper_force).get_real() + value);
+    else if (sign == '-') state.set_real(newtarget_.get(franka_o80::gripper_force).get_real() - value);
     else state.set_real(value);
 
     //Add command
-    target_.set(franka_o80::gripper_force, state);
+    newtarget_.set(franka_o80::gripper_force, state);
     front_->add_command(franka_o80::gripper_force, state, o80::Mode::QUEUE);
 }
 
@@ -416,25 +383,62 @@ void Control::loop()
 {
     while (!finish_)
     {
+        //Process text commands
+        newtarget_ = oldtarget_;
         std::string input;
         std::getline(std::cin, input);
         execute(input);
 
+        //Transition to state
         if (commands_count("1234567"))
         {
+            bool valid = true;
             for (size_t i = 0; i < 7; i++)
-                front_->add_command(franka_o80::joint_position[i], target_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
-            franka_o80::joint_to_cartesian(target_);
+            {
+                if (newtarget_.get(franka_o80::joint_position[i]).get_real() > franka_o80::joint_position_max[i] || newtarget_.get(franka_o80::joint_position[i]).get_real() < franka_o80::joint_position_min[i])
+                {
+                    std::cout << "Invalid joint position" << std::endl;
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid)
+            {
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                for (size_t i = 0; i < 7; i++) oldtarget_.set(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]));
+                franka_o80::joint_to_cartesian(oldtarget_);
+            }
         }
         if (commands_count("xyzq"))
         {
-            franka_o80::cartesian_to_joint(target_);
-            for (size_t i = 0; i < 7; i++)
-                front_->add_command(franka_o80::joint_position[i], target_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            bool valid = true;
+            try
+            {
+                franka_o80::cartesian_to_joint(newtarget_);
+            }
+            catch (...)
+            {
+                std::cout << "Invalid cartesian position" << std::endl;
+                valid = false;
+            }
+            if (valid)
+            {
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                for (size_t i = 0; i < 3; i++) oldtarget_.set(franka_o80::cartesian_position[i], newtarget_.get(franka_o80::cartesian_position[i]));
+                oldtarget_.set(franka_o80::cartesian_orientation, newtarget_.get(franka_o80::cartesian_orientation));
+            }
         }
         if (commands_count("g"))
         {
-            front_->add_command(franka_o80::gripper_width, target_.get(franka_o80::gripper_width), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+            if (newtarget_.get(franka_o80::gripper_width).get_real() > 0.1 || newtarget_.get(franka_o80::gripper_width).get_real() < 0)
+            {
+                std::cout << "Invalid gripper position" << std::endl;
+            }
+            else
+            {
+                front_->add_command(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                oldtarget_.set(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width));
+            }
         }
         if (commands_count("p"))
         {

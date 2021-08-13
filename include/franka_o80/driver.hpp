@@ -28,6 +28,7 @@ class Driver : public o80::Driver<DriverInput, DriverOutput>
 {
 private:
     bool started_ = false;
+    bool ok_      = false;
     std::string ip_;
     std::unique_ptr<franka::Robot> robot_;
     std::unique_ptr<franka::Model> model_;

@@ -609,30 +609,36 @@ void franka_o80::Driver::start()
     if (started_) return;
     started_ = true;
 
-    //Starting robot
+    //Initialize robot
     robot_ = std::unique_ptr<franka::Robot>(new franka::Robot(ip_));
     model_ = std::unique_ptr<franka::Model>(new franka::Model(robot_->loadModel()));
     robot_->automaticErrorRecovery();
+    franka::RobotState robot_state = robot_->readOnce();
+    if (robot_state.robot_mode != franka::RobotMode::kIdle) throw std::runtime_error("Driver cannot be started in current robot mode");
+    robot_write_output_(robot_state);
     robot_->setCollisionBehavior(
       {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
       {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0}},
       {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0}}, {{20.0, 20.0, 20.0, 20.0, 20.0, 20.0}},
       {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0}}, {{10.0, 10.0, 10.0, 10.0, 10.0, 10.0}});
-    franka::RobotState robot_state = robot_->readOnce();
-    robot_write_output_(robot_state);
-    robot_control_thread_ = std::thread([](Driver *driver) -> void { driver->robot_control_function_(); }, this);
 
-    //Starting gripper
+    //Initialize gripper
     gripper_ = std::unique_ptr<franka::Gripper>(new franka::Gripper(ip_));
-    gripper_->homing();
 	franka::GripperState gripper_state = gripper_->readOnce();
     output_.set(gripper_width, gripper_state.width);
     output_.set(gripper_temperature, gripper_state.temperature);
+    gripper_->homing();
+    
+    //Start
+    input_ = output_;
+    robot_control_thread_ = std::thread([](Driver *driver) -> void { driver->robot_control_function_(); }, this);
     gripper_control_thread_ = std::thread([](Driver *driver) -> void { driver->gripper_control_function_(); }, this);
+    ok_ = true;
 }
 
 void franka_o80::Driver::set(const DriverInput &input)
 {
+    if (!ok_) throw std::runtime_error("Driver is not properly initialized");
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
         input_ = input;
@@ -642,6 +648,7 @@ void franka_o80::Driver::set(const DriverInput &input)
 
 franka_o80::DriverOutput franka_o80::Driver::get()
 {
+    if (!ok_) throw std::runtime_error("Driver is not properly initialized");
     DriverOutput output;
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
@@ -655,12 +662,16 @@ void franka_o80::Driver::stop()
     if (!started_) return;
     started_ = false;
 
+    //Finalizing robot
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
         input_finished_ = true;
     }
     if (robot_control_thread_.joinable()) robot_control_thread_.join();
     
-    gripper_->stop();
+    //Finalizing gripper
+    if (ok_) gripper_->stop();
     if (gripper_control_thread_.joinable()) gripper_control_thread_.join();
+    
+    ok_ = false;
 }
