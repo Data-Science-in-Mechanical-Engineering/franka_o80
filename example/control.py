@@ -1,4 +1,4 @@
-#!/bin/python
+#!/bin/python3
 
 import re
 import math
@@ -16,14 +16,21 @@ def strtod(s, pos):
 def quaternion_multiply(quaternion1, quaternion0):
     w0, x0, y0, z0 = quaternion0
     w1, x1, y1, z1 = quaternion1
-    return np.array([-x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0,
-                    x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,
-                    -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
-                    x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0], dtype = np.float64)
+    r = np.zeros(4, dtype = np.float64)
+    r[0] = -x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0
+    r[1] = x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0
+    r[2] = -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0
+    r[3] = x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0
+    return r
 
 def quaternion_inverse(quaternion):
     w, x, y, z = quaternion
-    return np.array([w, -x, -y, -z], dtype = np.float64)
+    r = np.zeros(4, dtype = np.float64)
+    r[0] = w
+    r[1] = -x
+    r[2] = -y
+    r[3] = -z
+    return r
 
 class Control:
     @staticmethod
@@ -59,7 +66,8 @@ class Control:
         self.front_.add_command(franka_o80.control_mode, franka_o80.State(franka_o80.Mode.intelligent_position), o80.Mode.QUEUE)
         self.front_.reset_next_index()
         self.oldtarget_ = self.front_.wait_for_next().get_observed_states()
-        self.impedances_ = {}
+        self.commands_ = set()
+        self.impedances_ = dict()
         self.impedances_[0] = self.oldtarget_.get(franka_o80.joint_stiffness(0)).get_real() / franka_o80.default_states().get(franka_o80.joint_stiffness(0)).get_real()
         self.impedances_[1] = self.oldtarget_.get(franka_o80.cartesian_stiffness(0)).get_real() / franka_o80.default_states().get(franka_o80.cartesian_stiffness(0)).get_real()
         self.impedances_[2] = self.oldtarget_.get(franka_o80.cartesian_stiffness(3)).get_real() / franka_o80.default_states().get(franka_o80.cartesian_stiffness(3)).get_real()
@@ -165,8 +173,15 @@ class Control:
             return
         #Create state
         state = franka_o80.State()
-        if command == 'q': state.set_wxyz(np.array([values[0], values[1], values[2], values[3]], dtype=np.float64))
-        else: state.set_euler(np.array([math.pi * values[0] / 180, math.pi * values[1] / 180, math.pi * values[2] / 180], dtype=np.float64))
+        if command == 'q':
+            wxyz = np.zeros(4, dtype = np.float64)
+            for i in range(4): wxyz[i] = values[i]
+            state.set_wxyz(wxyz)
+        else:
+            euler = np.zeros(3, dtype = np.flaot64)
+            for i in range(3): euler[i] = math.pi * values[i] / 180
+            state.set_euler(euler)
+        
         if sign == '+': state.set_wxyz(quaternion_multiply(state.get_wxyz(), self.newtarget_.get(franka_o80.cartesian_orientation).get_wxyz()))
         elif sign == '-': state.set_wxyz(quaternion_multiply(quaternion_inverse(state.get_wxyz()), self.newtarget_.get(franka_o80.cartesian_orientation).get_wxyz()))
         #Add command
@@ -215,15 +230,15 @@ class Control:
         for i in range(3):
             self.front_.add_command(franka_o80.cartesian_stiffness(i), franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_stiffness(i)).get_real() * self.impedances_[1]), o80.Mode.QUEUE)
             self.front_.add_command(franka_o80.cartesian_damping(i), franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_damping(i)).get_real() * math.sqrt(self.impedances_[1])), o80.Mode.QUEUE)
-            self.front_.add_command(franka_o80.cartesian_stiffness[i + 3], franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_stiffness[i + 3]).get_real() * self.impedances_[2]), o80.Mode.QUEUE)
-            self.front_.add_command(franka_o80.cartesian_damping[i + 3], franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_damping[i + 3]).get_real() * math.sqrt(self.impedances_[2])), o80.Mode.QUEUE)
+            self.front_.add_command(franka_o80.cartesian_stiffness(i + 3), franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_stiffness(i + 3)).get_real() * self.impedances_[2]), o80.Mode.QUEUE)
+            self.front_.add_command(franka_o80.cartesian_damping(i + 3), franka_o80.State(franka_o80.default_states().get(franka_o80.cartesian_damping(i + 3)).get_real() * math.sqrt(self.impedances_[2])), o80.Mode.QUEUE)
     
     def execute(self, expression):
         if len(expression) == 0: return
         p = 0
         command = '\0'
         sign = '\0'
-        values = {}
+        values = dict()
         parser = "wait_command"
 
         while (True):
@@ -250,8 +265,7 @@ class Control:
                 else:
                     command = expression[p]
                     p += 1
-                    parser = "wait_sign" 
-                break
+                    parser = "wait_sign"
 
             elif parser == "wait_sign":
                 if expression[p] == ' ' or expression[p] == '\t':
@@ -262,13 +276,12 @@ class Control:
                 else:
                     sign = expression[p]
                     p += 1
-                    parser = "wait_value1" 
-                break
+                    parser = "wait_value1"
 
             elif parser == "wait_value1":
                 if expression[p] == ' ' or expression[p] == '\t':
                     p += 1
-                    break
+                    continue
                 values[0], np = strtod(expression, p)
                 if (np == p):
                      help()
@@ -276,7 +289,7 @@ class Control:
                 p = np
                 if command in "qri":
                     parser = "wait_value2"
-                    break
+                    continue
                 elif command in "1234567": self.command_joint_position(command, sign, values[0])
                 elif command in "xyz"    : self.command_cartesian_position(command, sign, values[0])
                 elif command == 'g'      : self.command_gripper_width(command, sign, values[0])
@@ -287,24 +300,22 @@ class Control:
                     else: self.execution_time_ = values[0]
                     if (self.execution_time_ < 1.0): self.execution_time_ = 1.0
                 parser = "wait_command"
-                break
 
             elif parser == "wait_value2":
                 if expression[p] == ' ' or expression[p] == '\t':
                     p += 1
-                    break
+                    continue
                 values[1], np = strtod(expression, p)
                 if (np == p):
                     help()
                     return
                 p = np
                 parser = "wait_value3"
-                break
             
             elif parser == "wait_value3":
                 if expression[p] == ' ' or expression[p] == '\t':
                     p += 1
-                    break
+                    continue
                 values[2], np = strtod(expression, p)
                 if (np == p):
                     help()
@@ -312,16 +323,15 @@ class Control:
                 p = np
                 if command == 'q':
                     parser = "wait_value4"
-                    break 
+                    continue 
                 elif command == 'r': self.command_cartesian_orientation(command, sign, values)
                 else: self.command_impedance(command, sign, values)
                 parser = "wait_command"
-                break
 
             else:
                 if expression[p] == ' ' or expression[p] == '\t':
                     p += 1
-                    break
+                    continue
                 values[3], np = strtod(expression, p)
                 if (np == p):
                     help()
@@ -329,7 +339,6 @@ class Control:
                 p = np
                 self.command_cartesian_orientation(command, sign, values)
                 parser = "wait_command"
-                break
     
     def loop(self):
         while not self.finish_:
@@ -346,7 +355,7 @@ class Control:
                         break
                 else:
                     for i in range(7):
-                        self.front_.add_command(franka_o80.joint_position(i), self.newtarget_.get(franka_o80.joint_position(i)), o80.Duration_us.seconds(self.execution_time_), o80.Mode.QUEUE)
+                        self.front_.add_command(franka_o80.joint_position(i), self.newtarget_.get(franka_o80.joint_position(i)), o80.Duration_us.milliseconds(int(1000 * self.execution_time_)), o80.Mode.QUEUE)
                         self.oldtarget_.set(franka_o80.joint_position(i), self.newtarget_.get(franka_o80.joint_position(i)))
                     franka_o80.joint_to_cartesian(self.oldtarget_)
             
@@ -356,7 +365,7 @@ class Control:
                 except:                
                     print("Invalid cartesian position")
                 else:
-                    for i in range(7): self.front_.add_command(franka_o80.joint_position(i), self.newtarget_.get(franka_o80.joint_position(i)), o80.Duration_us.seconds(self.execution_time_), o80.Mode.QUEUE)
+                    for i in range(7): self.front_.add_command(franka_o80.joint_position(i), self.newtarget_.get(franka_o80.joint_position(i)), o80.Duration_us.milliseconds(int(1000 * self.execution_time_)), o80.Mode.QUEUE)
                     for i in range(3): self.oldtarget_.set(franka_o80.cartesian_position(i), self.newtarget_.get(franka_o80.cartesian_position(i)))
                     self.oldtarget_.set(franka_o80.cartesian_orientation, self.newtarget_.get(franka_o80.cartesian_orientation))
             
@@ -364,7 +373,7 @@ class Control:
                 if self.newtarget_.get(franka_o80.gripper_width).get_real() > 0.1 or self.newtarget_.get(franka_o80.gripper_width).get_real() < 0:
                     print("Invalid gripper position")
                 else:
-                    self.front_.add_command(franka_o80.gripper_width, self.newtarget_.get(franka_o80.gripper_width), o80.Duration_us.seconds(self.execution_time_), o80.Mode.QUEUE)
+                    self.front_.add_command(franka_o80.gripper_width, self.newtarget_.get(franka_o80.gripper_width), o80.Duration_us.milliseconds(int(1000 * self.execution_time_)), o80.Mode.QUEUE)
                     self.oldtarget_.set(franka_o80.gripper_width, self.newtarget_.get(franka_o80.gripper_width))
             
             if self.commands_count("p"):
@@ -373,7 +382,7 @@ class Control:
             if self.commands_count("1234567 xyzq g"):
                 self.front_.pulse_and_wait()
             
-            self.commands_ = []
+            self.commands_ = set()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

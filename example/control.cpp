@@ -404,7 +404,7 @@ void Control::loop()
             }
             if (valid)
             {
-                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::milliseconds(1000.0 * execution_time_), o80::Mode::QUEUE);
                 for (size_t i = 0; i < 7; i++) oldtarget_.set(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]));
                 franka_o80::joint_to_cartesian(oldtarget_);
             }
@@ -423,7 +423,7 @@ void Control::loop()
             }
             if (valid)
             {
-                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                for (size_t i = 0; i < 7; i++) front_->add_command(franka_o80::joint_position[i], newtarget_.get(franka_o80::joint_position[i]), o80::Duration_us::milliseconds(1000.0 * execution_time_), o80::Mode::QUEUE);
                 for (size_t i = 0; i < 3; i++) oldtarget_.set(franka_o80::cartesian_position[i], newtarget_.get(franka_o80::cartesian_position[i]));
                 oldtarget_.set(franka_o80::cartesian_orientation, newtarget_.get(franka_o80::cartesian_orientation));
             }
@@ -436,7 +436,7 @@ void Control::loop()
             }
             else
             {
-                front_->add_command(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width), o80::Duration_us::seconds(execution_time_), o80::Mode::QUEUE);
+                front_->add_command(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width), o80::Duration_us::milliseconds(1000.0 * execution_time_), o80::Mode::QUEUE);
                 oldtarget_.set(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width));
             }
         }

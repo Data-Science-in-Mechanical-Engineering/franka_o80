@@ -1,4 +1,5 @@
 #include <o80/pybind11_helper.hpp>
+#include <pybind11/eigen.h>
 #include "../include/franka_o80/kinematics.hpp"
 #include "../include/franka_o80/standalone.hpp"
 #include "../include/franka_o80/limits.hpp"
@@ -32,6 +33,9 @@ PYBIND11_MODULE(franka_o80, m)
         .def("set_mode",        &franka_o80::State::set_mode)
         .def("set_error",       &franka_o80::State::set_error)
         .def("to_string",       &franka_o80::State::to_string);
+
+    //states.hpp
+    m.def("default_states",     &franka_o80::default_states);
 
     //limits.hpp
     m.attr("joint_position_min")        = franka_o80::joint_position_min;
