@@ -6,7 +6,7 @@
 
 namespace franka_o80
 {
-///Output for `Driver`
+///Output of `Driver`
 class DriverOutput : public DriverInputOutput
 {
 public:

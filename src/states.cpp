@@ -1,5 +1,6 @@
 #include "../include/franka_o80/states.hpp"
 
+///Returns robot's default states
 franka_o80::States franka_o80::default_states()
 {
     States states;
@@ -47,4 +48,4 @@ franka_o80::States franka_o80::default_states()
     }
     
     return states;
-};
+}

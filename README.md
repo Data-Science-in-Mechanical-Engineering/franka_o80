@@ -1,51 +1,72 @@
-﻿# Welcome to `franka_o80`
-Here you will find an [o80](https://github.com/intelligent-soft-robots/o80) `C++` and `Python` wrappers around [libfranka](https://github.com/frankaemika/libfranka).
+﻿# Welcome to `franka_o80`!
+Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 ### Contents
 1. [Welcome to franka_o80](#welcome-to-franka_o80)
 2. [Contents](#contents)
 3. [Structure](#structure)
-4. [Usage](#usage)
-4. [Dependencies](#dependencies)
-5. [Installation](#installation)
+4. [Requirements](#requirements)
+5. [Building](#building)
 6. [Documentation](#documentation)
+4. [Notes](#notes)
+7. [Contributors](#contributors)
+
+### Example
+Firstly, you need to start a backend with the following command (`ID` and `IP` are placeholders):
+```
+./franka_o80_backend ${ID} ${IP} &
+```
+Then you will be able to run a `C++` program:
+```
+#include <franka_o80/front_end.hpp>
+int main()
+{
+	franka_o80::FrontEnd frontend("ID");
+	frontend.add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
+	frontend.add_command(franka_o80::joint_position[0], 1.0, o80::Duration_us::seconds(5), o80::Mode::QUEUE);
+	frontend.pulse_and_wait();
+}
+```
+...or a correspondent `Python` script:
+```
+import o80
+import franka_o80
+frontend = franka_o80.FrontEnd("ID")
+frontend.add_command(franka_o80.control_mode(), franka_o80.State(franka_o80.Mode.intelligent_position), o80.Mode.QUEUE)
+frontend.add_command(franka_o80.joint_position(0), franka_o80.State(1.0), o80.Duration_us.seconds(5), o80.Mode.QUEUE)
+frontend.pulse_and_wait()
+```
 
 ### Structure
 Some files and directories you may need to know about:
  - `include` - include directory for `C++` programmers
  - `src` - directory containing `C++` sources
  - `example` - directory containing finished `franka_o80` projects in form of `C++` sources or `Python` files
- - `build` - `cmake` build directory
- - `build/franka_o80_cpp.so` - shared library for `C++` programmers (could be linked with `-lfranka_o80_cpp`)
+ - `build` - default name for `cmake` build directory
+ - `build/libfranka_o80_cpp.so` - shared library for `C++` programmers (could be linked with `-lfranka_o80_cpp`)
  - `build/franka_o80.so` - shared library for `Python` programmers (could be imported with `import franka_o80`)
- - `build/franka_o80_test_*` - dummy libraries for testing purposes
- - `build/example/franka_o80_backend` - executable for starting backend
- - `build/example/franka_o80_control` - application for basic robot control
- - `build/example/franka_o80_selftest` - [Google Test](https://github.com/google/googletest) testing of the library
+ - `build/franka_o80_backend` - executable for backend control
+ - `build/franka_o80_selftest` - executable for testing the library with [Google Test](https://github.com/google/googletest)
+ - `build/franka_o80_control` - example executable for robot control
+ - `build/franka_o80_control.py` - example `Python` script for robot control
+ - `build/franka_o80_control_trajectory` - example of commands that can be executed with `franka_o80_control`
 
-### Usage
-[o80](https://github.com/intelligent-soft-robots/o80) may be sometimes not intuitive, and `franka_o80` inherits it’s flaws.
-
-The project consists of frontend and backend. Frontend (`o80::Frontend` class) is used by programmer in `C++` or `Python`. It is responsible for sending commands and receiving observations from backend.
-
-Backend (`o80::Backend` and `o80::Standalone` classes) is written in `C++` and does not need to be changed. It is responsible for communication with the [libfranka](https://github.com/frankaemika/libfranka) and needs to be started on the same machine in order to use frontends.
-
-All variables in `franka_o80` are represented as actuators in terms of [o80](https://github.com/intelligent-soft-robots/o80), even control mode, reset, error, velocities, torques, etc., so they are set with `add_command` as all other actuators. When reading observations, all actuators are defined. But some actuators (like `joint_position` and `cartesial_position`) obviously contradict each other, which of them will be used to control the robot, is decided by mode.  Non-intelligent modes directly correspond to `Robot::control` overloaded functions in [libfranka](https://github.com/frankaemika/libfranka). Intelligent modes are implemented with `Robot::control(std::function<Torques(RobotState)>)` function.
-
-### Dependencies
-`franka_o80` depends on:
+### Requirements
+`franka_o80` requires:
  - [o80](https://github.com/intelligent-soft-robots/o80)
- - [libfranka](https://github.com/frankaemika/libfranka) (as part of ROS)
- - [pinocchio](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html) (as part of ROS)
+ - [libfranka](https://github.com/frankaemika/libfranka) (as part of `ROS`)
+ - [pinocchio](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html) (as part of `ROS`)
  - [Eigen](https://eigen.tuxfamily.org)
- - [Boost](https://www.boost.org) (system and thread)
- - [Google Test](https://github.com/google/googletest)
+ - [Boost](https://www.boost.org) (`system` and `thread`)
+ - [Google Test](https://github.com/google/googletest) (optionally)
  - [pybind11](https://github.com/pybind/pybind11) (optionally)
  - [CMake](https://cmake.org) >= `3.10.2`
  - Fully preemptable Linux kernel
  - C++17 compatible compiler
+ - `root` privileges
 
-### Installation
+### Building
+`franka_o80` can be built with [CMake](https://cmake.org) using following commands:
 ```
 mkdir build
 cd build
@@ -54,9 +75,19 @@ cmake --build .
 ```
 
 ### Documentation
-[Doxygen](https://www.doxygen.nl) documentation is provided.
+`Python` docstrings are provided. `C++` code is documented with comments. [Doxygen](https://www.doxygen.nl) documentation may be generated with `doxygen` command. Example projects print human-readable help messages.
+
+### Notes
+`franka_o80` may sometimes be non-intuitive. So here are some important notes:
+ - `franka_o80` is a specialization of some [o80](https://github.com/intelligent-soft-robots/o80) templates. Some vital general functions may be implemented and documented in [o80](https://github.com/intelligent-soft-robots/o80), not `franka_o80`.
+ - The project consists of frontend and backend. **Frontend** is responsible for sending commands and receiving observations from backend. `franka_o80::Frontend` class is the main class to be used by programmers in `C++` or `Python`. **Backend** is responsible for communication with the [libfranka](https://github.com/frankaemika/libfranka) and needs to be started on the machine in order to use frontends. This could be done with `franka_o80_backend` executable or with some functions, like `franka_o80::start_standalone`.
+ - All variables in `franka_o80` are implemented as actuators in terms of [o80](https://github.com/intelligent-soft-robots/o80), even control mode, reset signal, error, velocities, torques, etc., and they are controlled with `Frontend::add_command` like real actuators. When reading observations, all actuators are defined. But some of them (like `franka_o80::joint_position` and `franka_o80::cartesian_position`) obviously contradict each other, and which of them will be used to control the robot, is decided by `control_mode` actuator.
+ - All actuators, like `franka_o80::control_mode` or `franka_o80::joint_position`, are just constant numbers. They are only useful in `Frontend::add_command`, `States::get` and `States::set` functions.
+ - Frontend does not throw exceptions when an error in backend occurs. The only way to know about backend errors is to read `franka_o80::control_error` actuator.
+ - All `Frontend::add_command` functions accept `franka_o80::State`. This is why the class encapsulates both real numbers, quaternions, mode and error enumerations, and some dynamic typization is done in the class (even in `C++`). Backend will, for example, expect the state applied to `control_mode` actuator to contain `franka_o80::Mode` value, but frontend does not check state types and does not throw exceptions. The only way to know that `Frontend::add_command` was called with wrong state type is to read `franka_o80::control_error` actuator.
+ - The gripper is controlled with `franka_o80::gripper_grasped`, and may only be in "opened" or "closed" state. No finger width control is currently possible.
 
 ### Contributors
  - Kyrylo Sovailo
- - Vincent Berenz (original `o80`)
- - Models from `model` were generated from `franka_description` package from ROS
+ - Original [o80](https://github.com/intelligent-soft-robots/o80) is authored by Vincent Berenz
+ - Models from `model` directory were generated with [MoveIt Setup Assistant](http://docs.ros.org/en/kinetic/api/moveit_tutorials/html/doc/setup_assistant/setup_assistant_tutorial.html) from `ROS` package `franka_description`

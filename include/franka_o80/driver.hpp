@@ -37,10 +37,10 @@ private:
     std::thread gripper_control_thread_;
     std::mutex input_output_mutex_;
 
-	Mode mode_ = Mode::invalid;                         //Current mode, set when entering the loop and in intelligent modes. Read robot thread
+    Mode mode_ = Mode::invalid;                         //Current mode, set when entering the loop and in intelligent modes. Read robot thread
     Eigen::Matrix<double, 7, 1> joint_stiffness_;       //Current joint stiffness, set when entering the loop. Read by robot thread
     Eigen::Matrix<double, 6, 1> cartesian_stiffness_;   //Current cartesian stiffness, set when entering the loop. Read by robot thread
-	DriverInput input_;             //Input. Read by robot and gripper, written by external threads. Error is ignored
+    DriverInput input_;             //Input. Read by robot and gripper, written by external threads. Error is ignored
     DriverOutput output_;           //Output. Written by robot and gripper, read by external threads. Error is also read by robot and gripper
     bool input_finished_ = false;   //Input finished flag. Read by robot and gripper, set by external threads
     size_t input_count_ = 0;        //Counter of .set calls. Read by gripper, edited by external threads.
@@ -48,7 +48,7 @@ private:
     void robot_write_output_(const franka::RobotState &robot_state);
     void robot_dummy_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);
     void robot_torque_control_function_(const franka::RobotState &robot_state, franka::Torques *torques);
-	void robot_position_control_function_(const franka::RobotState &robot_state, franka::JointPositions *positions);
+    void robot_position_control_function_(const franka::RobotState &robot_state, franka::JointPositions *positions);
     void robot_velocity_control_function_(const franka::RobotState &robot_state, franka::JointVelocities *velocities);
     void robot_cartesian_position_control_function_(const franka::RobotState &robot_state, franka::CartesianPose *cartesian_position);
     void robot_cartesian_velocity_control_function_(const franka::RobotState &robot_state, franka::CartesianVelocities *cartesian_velocity);

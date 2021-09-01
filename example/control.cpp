@@ -38,8 +38,8 @@ public:
 void Control::help()
 {
     std::cout << "Welcome to franka_o80 control!"                       << std::endl;
-	std::cout << "The program is created to control franka_o80 backend" << std::endl;
-	std::cout << std::endl;
+    std::cout << "The program is created to control franka_o80 backend" << std::endl;
+    std::cout << std::endl;
 
     std::cout << "Usage:"                         << std::endl;
     std::cout << "./control ID"                   << std::endl;
@@ -64,7 +64,7 @@ void Control::help()
 
 Control::Control(std::string id)
 {
-	front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
+    front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
     front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
     front_->reset_next_index();
     oldtarget_ = front_->wait_for_next().get_observed_states();
@@ -454,14 +454,14 @@ int main(int argc, char **argv)
     if (argc != 2) { Control::help(); return 1; }
 
     Control control(argv[1]);
-	try
-	{
+    try
+    {
         control.loop();
         return 0;
-	}
-	catch (std::exception &e)
-	{
-		std::cout << "Exception occured: " << e.what() << std::endl;
-	}
-	return 1;
+    }
+    catch (std::exception &e)
+    {
+        std::cout << "Exception occured: " << e.what() << std::endl;
+    }
+    return 1;
 }
