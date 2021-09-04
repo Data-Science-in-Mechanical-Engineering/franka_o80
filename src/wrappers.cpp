@@ -1,11 +1,17 @@
 #include <o80/pybind11_helper.hpp>
 #include <pybind11/eigen.h>
 #include <pybind11/operators.h>
-#include "../include/franka_o80/kinematics.hpp"
-#include "../include/franka_o80/standalone.hpp"
-#include "../include/franka_o80/limits.hpp"
-#include "../include/franka_o80/error.hpp"
-#include "../include/franka_o80/actuator.hpp"
+#ifdef FRANKA_O80_WRAPPERS_INSTALLED
+    #include <franka_o80/kinematics.hpp>
+    #include <franka_o80/standalone.hpp>
+    #include <franka_o80/limits.hpp>
+    #include <franka_o80/actuator.hpp>
+#else
+    #include "../include/franka_o80/kinematics.hpp"
+    #include "../include/franka_o80/standalone.hpp"
+    #include "../include/franka_o80/limits.hpp"
+    #include "../include/franka_o80/actuator.hpp"
+#endif
 #include <stdexcept>
 
 PYBIND11_MODULE(franka_o80, m)
@@ -21,17 +27,17 @@ PYBIND11_MODULE(franka_o80, m)
     m.def("gripper_width",          []()      -> int { return franka_o80::gripper_width; },                                                                                             "Actuator number corresponding to gripper width");
     m.def("gripper_temperature",    []()      -> int { return franka_o80::gripper_temperature; },                                                                                       "Actuator number corresponding to gripper temperature");
     m.def("gripper_force",          []()      -> int { return franka_o80::gripper_force; },                                                                                             "Actuator number corresponding to gripper force");
-    m.def("joint_position",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_position[i]; },            "Actuator numbers corresponding to robot angular positions");
-    m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_velocity[i]; },            "Actuator numbers corresponding to robot angular velocities");
-    m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_torque[i]; },              "Actuator numbers corresponding to robot torques");
-    m.def("cartesian_position",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_position[i]; },    "Actuator numbers corresponding to effector position");
+    m.def("joint_position",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_position[i]; },           "Actuator numbers corresponding to robot angular positions");
+    m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_velocity[i]; },           "Actuator numbers corresponding to robot angular velocities");
+    m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_torque[i]; },             "Actuator numbers corresponding to robot torques");
+    m.def("cartesian_position",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::cartesian_position[i]; },   "Actuator numbers corresponding to effector position");
     m.def("cartesian_orientation",  []()      -> int { return franka_o80::cartesian_orientation; },                                                                                     "Actuator numbers corresponding to effector orientation. Contains quaternion values");
-    m.def("cartesian_velocity",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_velocity[i]; },    "Actuator numbers corresponding to effector translation velocity");
-    m.def("cartesian_rotation",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_rotation[i]; },    "Actuator numbers corresponding to effector rotation velocity (WRT)");
-    m.def("joint_stiffness",        [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::joint_stiffness[i]; },       "Actuator numbers corresponding to joint-space stiffness");
-    m.def("joint_damping",          [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::joint_damping[i]; },         "Actuator numbers corresponding to joint-space damping");
-    m.def("cartesian_stiffness",    [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_stiffness[i]; },   "Actuator numbers corresponding to cartesian stiffness (for velocity and rotation)");
-    m.def("cartesian_damping",      [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid dimension index"); return franka_o80::cartesian_damping[i]; },     "Actuator numbers corresponding to cartesian damping (for velocity and rotation)");
+    m.def("cartesian_velocity",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::cartesian_velocity[i]; },   "Actuator numbers corresponding to effector translation velocity");
+    m.def("cartesian_rotation",     [](int i) -> int { if (i < 0 || i > 3) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::cartesian_rotation[i]; },   "Actuator numbers corresponding to effector rotation velocity (WRT)");
+    m.def("joint_stiffness",        [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::joint_stiffness[i]; },      "Actuator numbers corresponding to joint-space stiffness");
+    m.def("joint_damping",          [](int i) -> int { if (i < 0 || i > 7) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::joint_damping[i]; },        "Actuator numbers corresponding to joint-space damping");
+    m.def("cartesian_stiffness",    [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::cartesian_stiffness[i]; },  "Actuator numbers corresponding to cartesian stiffness (for velocity and rotation)");
+    m.def("cartesian_damping",      [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid dimension index"); return franka_o80::cartesian_damping[i]; },    "Actuator numbers corresponding to cartesian damping (for velocity and rotation)");
     
     //error.hpp
     pybind11::enum_<franka_o80::Error>(m, "Error",                                                          "Enumeration of backend error indicators")
@@ -54,13 +60,13 @@ PYBIND11_MODULE(franka_o80, m)
     m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, const franka_o80::States&>(&franka_o80::cartesian_to_joint),   "Transforms cartesian position and orientation to joint position wit hcustom initial guess",pybind11::arg("states"), pybind11::arg("hint"));
 
     //limits.hpp
-    m.def("joint_position_min",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_position_min[i]; },     "Robot minimal positions for each joint");
-    m.def("joint_position_max",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_position_max[i]; },     "Robot maximal positions for each joint");
-    m.def("joint_velocity_max",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_velocity_max[i]; },     "Robot maximal angular velocities for each joint");
-    m.def("joint_acceleration_max", [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_acceleration_max[i]; }, "Robot maximal angular accelerations for each joint");
-    m.def("joint_jerk_max",         [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_jerk_max[i]; },         "Robot maximal angular jerks for each joint");
-    m.def("joint_torque_max",       [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_torque_max[i]; },       "Robot maximal torques for each joint");
-    m.def("joint_dtorque_max",      [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invaid joint index"); return franka_o80::joint_dtorque_max[i]; },      "Robot maximal derivaties of torques for each joint");
+    m.def("joint_position_min",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_position_min[i]; },     "Robot minimal positions for each joint");
+    m.def("joint_position_max",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_position_max[i]; },     "Robot maximal positions for each joint");
+    m.def("joint_velocity_max",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_velocity_max[i]; },     "Robot maximal angular velocities for each joint");
+    m.def("joint_acceleration_max", [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_acceleration_max[i]; }, "Robot maximal angular accelerations for each joint");
+    m.def("joint_jerk_max",         [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_jerk_max[i]; },         "Robot maximal angular jerks for each joint");
+    m.def("joint_torque_max",       [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_torque_max[i]; },       "Robot maximal torques for each joint");
+    m.def("joint_dtorque_max",      [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_dtorque_max[i]; },      "Robot maximal derivaties of torques for each joint");
 
     //mode.hpp
     pybind11::enum_<franka_o80::Mode>(m, "Mode",                                                "Enumeration of control modes. Mode defines which actuators does the backend listen and which does ignore")
