@@ -40,8 +40,7 @@ Makefile
 CMakeCache.txt
 CMakeFiles/
 
-# o80_franka #
-#######
-franka_o80-config.cmake
+# franka_o80 #
+##############
 build/
 documentation/

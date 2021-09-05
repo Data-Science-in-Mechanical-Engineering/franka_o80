@@ -1,4 +1,12 @@
-project(franka_o80)
+#################
+# Configuretion #
+#################
+
+cmake_minimum_required(VERSION 3.14.0)
+cmake_policy(SET CMP0048 NEW)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+project(franka_o80 VERSION 0.9.0)
 
 ################
 # Dependencies #
@@ -6,13 +14,6 @@ project(franka_o80)
 
 #c++
 set(CMAKE_CXX_STANDARD 17)
-
-#cmake
-cmake_minimum_required(VERSION 3.14.0)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-#real-time
-add_compile_definitions(RT_PREEMPT)
 
 #libfranka
 if (DEFINED franka_DIR)
@@ -94,13 +95,17 @@ src/standalone.cpp
 src/states.cpp
 src/state.cpp)
 if (NOT franka_o80_omit_include_directories MATCHES yes)
-	target_include_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+	target_include_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 endif()
+target_compile_definitions(franka_o80 PUBLIC RT_PREEMPT)
+target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
+target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_MINOR=${PROJECT_VERSION_MINOR})
+target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_PATCH=${PROJECT_VERSION_PATCH})
 target_include_directories(franka_o80 PUBLIC ${franka_INCLUDE_DIRS})
 target_include_directories(franka_o80 PUBLIC ${o80_INCLUDE_DIRS})
 target_include_directories(franka_o80 PUBLIC ${pinocchio_INCLUDE_DIRS})
 target_include_directories(franka_o80 PUBLIC ${EIGEN3_INCLUDE_DIRS})
-target_link_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<INSTALL_INTERFACE:lib>)
+target_link_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}> $<INSTALL_INTERFACE:lib>)
 target_link_directories(franka_o80 PUBLIC ${franka_LIBRARY_DIRS})
 target_link_directories(franka_o80 PUBLIC ${o80_LIBRARY_DIRS})
 target_link_directories(franka_o80 PUBLIC ${pinocchio_LIBRARY_DIRS})
@@ -108,10 +113,13 @@ target_link_libraries(franka_o80 PUBLIC ${franka_LIBRARIES})
 target_link_libraries(franka_o80 PUBLIC ${o80_LIBRARIES})
 target_link_libraries(franka_o80 PUBLIC ${pinocchio_LIBRARIES})
 target_link_libraries(franka_o80 PUBLIC boost_system boost_thread rt pthread)
-export(TARGETS franka_o80 FILE ${CMAKE_SOURCE_DIR}/franka_o80-config.cmake)
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("${PROJECT_SOURCE_DIR}/franka_o80-config-version.cmake" VERSION ${PROJECT_VERSION} COMPATIBILITY AnyNewerVersion)
+export(TARGETS franka_o80 FILE "${PROJECT_SOURCE_DIR}/franka_o80-config.cmake")
 install(DIRECTORY include/franka_o80 TYPE INCLUDE)
 install(TARGETS franka_o80 EXPORT franka_o80-config)
 install(EXPORT franka_o80-config DESTINATION lib/cmake/franka_o80)
+install(FILES "${PROJECT_SOURCE_DIR}/franka_o80-config-version.cmake" DESTINATION lib/cmake/franka_o80)
 
 # franka_o80_backend
 add_executable(franka_o80_backend example/backend.cpp)

@@ -11,7 +11,7 @@ namespace franka_o80
 typedef o80::FrontEnd<franka_o80::queue_size, franka_o80::actuator_number, franka_o80::State, o80::VoidExtendedState> FrontEnd;
 } // namespace franka_o80
 
-/** @mainpage Welcome to `franka_o80`!
+/** @mainpage Welcome to `franka_o80 0.9.0`!
 Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 @tableofcontents
@@ -32,7 +32,7 @@ It can be built with the following `CMakeLists.txt`:
 ```
 project(example)
 cmake_minimum_required(VERSION 3.14.0)
-find_package(franka_o80 REQUIRED)
+find_package(franka_o80 0.9.0 REQUIRED)
 add_executable(example example.cpp)
 target_link_libraries(example PRIVATE franka_o80)
 ```

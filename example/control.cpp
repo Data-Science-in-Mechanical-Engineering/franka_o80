@@ -1,6 +1,7 @@
 #include "../include/franka_o80/kinematics.hpp"
 #include "../include/franka_o80/front_end.hpp"
 #include "../include/franka_o80/limits.hpp"
+#include "../include/franka_o80/version.hpp"
 #include <memory>
 #include <string>
 #include <thread>
@@ -37,8 +38,8 @@ public:
 
 void Control::help()
 {
-    std::cout << "Welcome to franka_o80 control!"                       << std::endl;
-    std::cout << "The program is created to control franka_o80 backend" << std::endl;
+    std::cout << "Welcome to franka_o80_control " << franka_o80::version_major << "." << franka_o80::version_minor << "." << franka_o80::version_patch << "!" << std::endl;
+    std::cout << "The program is created to control franka_o80 backends" << std::endl;
     std::cout << std::endl;
 
     std::cout << "Usage:"                         << std::endl;

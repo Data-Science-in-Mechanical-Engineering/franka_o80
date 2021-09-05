@@ -35,14 +35,14 @@ def quaternion_inverse(quaternion):
 class Control:
     @staticmethod
     def help():
-        print("Welcome to franka_o80 control!")
-        print("The program is created to control franka_o80 backend")
-        print("\n")
+        print("Welcome to franka_o80_control " + str(franka_o80.version_major()) + "." + str(franka_o80.version_minor()) + "." + str(franka_o80.version_patch()) + "!")
+        print("The program is created to control franka_o80 backends")
+        print()
 
         print("Usage:")
         print("./control ID")
         print("Where ID is backend identifier")
-        print("\n")
+        print()
 
         print("Possible commands:" )
         print("1..7  - Joints 1 to 7.            Syntax: 1..7  +/-/= degree")
@@ -99,17 +99,17 @@ class Control:
         #Robot joints
         print("joint_position       :")
         for i in range(7): print(" ", 180.0 * states.get(franka_o80.joint_position(i)).get_real() / math.pi)
-        print("\n")
+        print()
         print("joint_torque         :")
         for i in range(7): print(" ", states.get(franka_o80.joint_torque(i)).get_real())
-        print("\n")
+        print()
         print("joint_impedance      :")
         print(self.impedances_[0])
 
         #Robot cartesian
         print("cartesian_position   :")
         for i in range(3): print(" ", states.get(franka_o80.cartesian_position(i)).get_real())
-        print("\n")
+        print()
         print("cartesian_orientation:")
         for i in range(4): print(" ", states.get(franka_o80.cartesian_orientation()).get_wxyz()[i])
         print(" (")

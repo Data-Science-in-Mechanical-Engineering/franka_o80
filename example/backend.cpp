@@ -1,5 +1,6 @@
 #include "../include/franka_o80/driver.hpp"
 #include "../include/franka_o80/standalone.hpp"
+#include "../include/franka_o80/version.hpp"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,7 +21,7 @@ namespace franka_o80
 
 void franka_o80::help()
 {
-    std::cout << "Welcome to franka_o80 backend!"                             << std::endl;
+    std::cout << "Welcome to franka_o80_backend " << franka_o80::version_major << "." << franka_o80::version_minor << "." << franka_o80::version_patch << "!" << std::endl;
     std::cout << "The program is created to start and stop backends"          << std::endl;
     std::cout << std::endl;
     std::cout << "Usage:"                                                     << std::endl;

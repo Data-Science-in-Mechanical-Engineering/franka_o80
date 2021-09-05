@@ -6,17 +6,20 @@
     #include <franka_o80/standalone.hpp>
     #include <franka_o80/limits.hpp>
     #include <franka_o80/actuator.hpp>
+    #include <franka_o80/version.hpp>
 #else
     #include "../include/franka_o80/kinematics.hpp"
     #include "../include/franka_o80/standalone.hpp"
     #include "../include/franka_o80/limits.hpp"
     #include "../include/franka_o80/actuator.hpp"
+    #include "../include/franka_o80/version.hpp"
 #endif
 #include <stdexcept>
 
 PYBIND11_MODULE(franka_o80, m)
 {
-    m.doc() = "Library for control of Franka Emika Panda robot. The library is a specialization of o80 templates and is based on libfranka";
+    m.doc() = "franka_o80 " + std::to_string(franka_o80::version_major) + "." + std::to_string(franka_o80::version_minor) + "." + std::to_string(franka_o80::version_patch) +
+    " is a library for control of Franka Emika Panda robot. The library is a specialization of o80 templates and is based on libfranka";
     o80::create_python_bindings<franka_o80::Standalone, o80::NO_STATE>(m);
 
     //actuator.hpp
@@ -127,4 +130,9 @@ PYBIND11_MODULE(franka_o80, m)
     
     //states.hpp
     m.def("default_states", &franka_o80::default_states,    "Returns robot's default states");
+
+    //version.hpp
+    m.def("version_major",  []() -> int { return franka_o80::version_major; }, "Major version");
+    m.def("version_minor",  []() -> int { return franka_o80::version_minor; }, "Minor version");
+    m.def("version_patch",  []() -> int { return franka_o80::version_patch; }, "Patch numebr");
 }
