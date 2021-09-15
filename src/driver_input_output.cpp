@@ -10,13 +10,15 @@ std::string franka_o80::DriverInputOutput::to_string(bool output) const
 {
     //Status
     std::string result;
-    result += "control_mode: "; result += get(control_mode).to_string();
+    result += "robot_mode: "; result += get(robot_mode).to_string();
+    result += " gripper_mode: "; result += get(gripper_mode).to_string();
     result += " control_error: "; result += get(control_error).to_string();
     result += " control_reset: "; result += get(control_reset).to_string();
 
     //Gripper
     result += " gripper_width: "; result += get(gripper_width).to_string();
     result += " gripper_temperature: "; result += get(gripper_temperature).to_string();
+    result += " gripper_force: "; result += get(gripper_force).to_string();
 
     //Robot joints
     result += " joint_position: [ "; for (size_t i = 0; i < 7; i++) { result += get(joint_position[i]).to_string(); result += " "; } result += "]";

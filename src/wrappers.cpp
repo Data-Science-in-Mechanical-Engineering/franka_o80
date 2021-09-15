@@ -24,12 +24,14 @@ PYBIND11_MODULE(franka_o80, m)
 
     //actuator.hpp
     m.def("actuator_number",        []()      -> int { return franka_o80::actuator_number; },                                                                                           "Actuator number");
-    m.def("control_mode",           []()      -> int { return franka_o80::control_mode; },                                                                                              "Actuator number corresponding to control mode. Contains `franka_o80::Mode` values");
+    m.def("robot_mode",             []()      -> int { return franka_o80::robot_mode; },                                                                                                "Actuator number corresponding to robot control mode. Contains `franka_o80::RobotMode` values");
+    m.def("gripper_mode",           []()      -> int { return franka_o80::gripper_mode; },                                                                                              "Actuator number corresponding to gripper control mode. Contains `franka_o80::GripperMode` values");
     m.def("control_error",          []()      -> int { return franka_o80::control_error; },                                                                                             "Actuator number corresponding to error indicator. Contains `franka_o80::Error` values");
     m.def("control_reset",          []()      -> int { return franka_o80::control_reset; },                                                                                             "Actuator numbers corresponding to reset");
     m.def("gripper_width",          []()      -> int { return franka_o80::gripper_width; },                                                                                             "Actuator number corresponding to gripper width");
-    m.def("gripper_temperature",    []()      -> int { return franka_o80::gripper_temperature; },                                                                                       "Actuator number corresponding to gripper temperature");
+    m.def("gripper_velocity",       []()      -> int { return franka_o80::gripper_velocity; },                                                                                          "Actuator number corresponding to gripper velocity");
     m.def("gripper_force",          []()      -> int { return franka_o80::gripper_force; },                                                                                             "Actuator number corresponding to gripper force");
+    m.def("gripper_temperature",    []()      -> int { return franka_o80::gripper_temperature; },                                                                                       "Actuator number corresponding to gripper temperature");
     m.def("joint_position",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_position[i]; },           "Actuator numbers corresponding to robot angular positions");
     m.def("joint_velocity",         [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_velocity[i]; },           "Actuator numbers corresponding to robot angular velocities");
     m.def("joint_torque",           [](int i) -> int { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_torque[i]; },             "Actuator numbers corresponding to robot torques");
@@ -57,6 +59,12 @@ PYBIND11_MODULE(franka_o80, m)
     .value("gripper_invalid_operation_exception",   franka_o80::Error::gripper_invalid_operation_exception, "franka::Gripper has thrown franka::InvalidOperationException")
     .value("gripper_other_exception",               franka_o80::Error::gripper_other_exception,             "franka::Gripper has thrown other exception");
 
+    //gripper_mode.hpp
+    pybind11::enum_<franka_o80::GripperMode>(m, "GripperMode",  "Enumeration of gripper control modes. Mode defines which actuators does the backend listen and which does ignore")
+    .value("invalid",   franka_o80::GripperMode::invalid,       "Backend listens only gripper_mode and reset, gripper does not move")
+    .value("move",      franka_o80::GripperMode::move,          "Backend listens gripper_width and gripper_velocity, precise width control is possible in this mode")
+    .value("grasp",     franka_o80::GripperMode::grasp,         "Backend listens gripper_width, gripper_velocity and gripper_force, precise gripping force control is possible in this mode");
+
     //kinematics.hpp
     m.def("joint_to_cartesian", &franka_o80::joint_to_cartesian,                                                                            "Transforms joint positions to cartesian position and orientation",                         pybind11::arg("states"));
     m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&>(&franka_o80::cartesian_to_joint),                              "Transforms cartesian position and orientation to joint position",                          pybind11::arg("states"));
@@ -71,23 +79,24 @@ PYBIND11_MODULE(franka_o80, m)
     m.def("joint_torque_max",       [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_torque_max[i]; },       "Robot maximal torques for each joint");
     m.def("joint_dtorque_max",      [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_dtorque_max[i]; },      "Robot maximal derivaties of torques for each joint");
 
-    //mode.hpp
-    pybind11::enum_<franka_o80::Mode>(m, "Mode",                                                "Enumeration of control modes. Mode defines which actuators does the backend listen and which does ignore")
-    .value("invalid",                       franka_o80::Mode::invalid,                          "Backend listens only mode and reset, robot does not move")
-    .value("torque",                        franka_o80::Mode::torque,                           "Backend listens torques")
-    .value("torque_position",               franka_o80::Mode::torque_position,                  "Backend listens torques and joint positions")
-    .value("torque_velocity",               franka_o80::Mode::torque_velocity,                  "Backend listens torques and joint velocities")
-    .value("torque_cartesian_position",     franka_o80::Mode::torque_cartesian_position,        "Backend listens torques and cartesian position")
-    .value("torque_cartesian_velocity",     franka_o80::Mode::torque_cartesian_velocity,        "Backend listens torques and cartesian velocities")
-    .value("position",                      franka_o80::Mode::position,                         "Backend listens joint positions")
-    .value("velocity",                      franka_o80::Mode::velocity,                         "Backend listens joint velocities")
-    .value("cartesian_position",            franka_o80::Mode::cartesian_position,               "Backend listens cartesian positions")
-    .value("cartesian_velocity",            franka_o80::Mode::cartesian_velocity,               "Backend listens cartesian velocities")
-    .value("intelligent_position",          franka_o80::Mode::intelligent_position,             "Backend listens joint positions, but calculates torques itself. In practice, the robot moves smoothly im this mode")
-    .value("intelligent_cartesian_position",franka_o80::Mode::intelligent_cartesian_position,   "Backend listens cartesian positions, but calculates torques itself. In practice, the robot moves smoothly im this mode");
-
     //queue.hpp
     m.def("actuator_number",    []() -> int { return franka_o80::queue_size; }, "Command queue size");
+
+    //robot_mode.hpp
+    pybind11::enum_<franka_o80::RobotMode>(m, "RobotMode",                                          "Enumeration of robot control modes. Mode defines which actuators does the backend listen and which does ignore")
+    .value("invalid",                       franka_o80::RobotMode::invalid,                         "Backend listens only mode and reset, robot does not move")
+    .value("torque",                        franka_o80::RobotMode::torque,                          "Backend listens torques")
+    .value("torque_position",               franka_o80::RobotMode::torque_position,                 "Backend listens torques and joint positions")
+    .value("torque_velocity",               franka_o80::RobotMode::torque_velocity,                 "Backend listens torques and joint velocities")
+    .value("torque_cartesian_position",     franka_o80::RobotMode::torque_cartesian_position,       "Backend listens torques and cartesian position")
+    .value("torque_cartesian_velocity",     franka_o80::RobotMode::torque_cartesian_velocity,       "Backend listens torques and cartesian velocities")
+    .value("position",                      franka_o80::RobotMode::position,                        "Backend listens joint positions")
+    .value("velocity",                      franka_o80::RobotMode::velocity,                        "Backend listens joint velocities")
+    .value("cartesian_position",            franka_o80::RobotMode::cartesian_position,              "Backend listens cartesian positions")
+    .value("cartesian_velocity",            franka_o80::RobotMode::cartesian_velocity,              "Backend listens cartesian velocities")
+    .value("intelligent_position",          franka_o80::RobotMode::intelligent_position,            "Backend listens joint positions, but calculates torques itself. In practice, the robot moves smoothly im this mode")
+    .value("intelligent_cartesian_position",franka_o80::RobotMode::intelligent_cartesian_position,  "Backend listens cartesian positions, but calculates torques itself. In practice, the robot moves smoothly im this mode");
+
 
     //standalone.hpp
     m.def("start_standalone",       &franka_o80::start_standalone,      "Starts standalone",                    pybind11::arg("segment_id"), pybind11::arg("ip"));
@@ -97,36 +106,40 @@ PYBIND11_MODULE(franka_o80, m)
 
     //state.hpp
     pybind11::enum_<franka_o80::State::Type>(
-        pybind11::class_<franka_o80::State> (m, "State",            "Actuator state. Some dynamic typization is done within the class, so it may contain real number, quaternion, franka_o80.Mode or franka_o80.Error")
-        .def(pybind11::init<>(),                                    "Creates state with zero real value")
-        .def(pybind11::init<double>(),                              "Creates state with given real value")
-        .def(pybind11::init<const Eigen::Quaterniond&>(),           "Creates state with given quaternion value")
-        .def(pybind11::init<const Eigen::Matrix<double, 4, 1>&>(),  "Creates state with given quaternion value given as wxyz")
-        .def(pybind11::init<const Eigen::Matrix<double, 3, 1>&>(),  "Creates state with given quaternion value given as Euler angles")
-        .def(pybind11::init<franka_o80::Mode>(),                    "Creates state with given mode value")
-        .def(pybind11::init<franka_o80::Error>(),                   "Creates state with given error value")
-        .def(pybind11::init<const franka_o80::State&>(),            "Copies state")
-        .def("set_real",        &franka_o80::State::set_real,       "Sets state's value to real value")
-        .def("set_quaternion",  &franka_o80::State::set_quaternion, "Sets state's value to quaternion value")
-        .def("set_wxyz",        &franka_o80::State::set_wxyz,       "Sets state's value to quaternion value given as wxyz")
-        .def("set_euler",       &franka_o80::State::set_euler,      "Sets state's value to quaternion value given as Euler angles")
-        .def("set_mode",        &franka_o80::State::set_mode,       "Sets state's value to mode value")
-        .def("set_error",       &franka_o80::State::set_error,      "Sets state's value to error value")
-        .def("get_type",        &franka_o80::State::get_type,       "Returns state's type")
-        .def("get_real",        &franka_o80::State::get_real,       "Returns real value")
-        .def("get_quaternion",  &franka_o80::State::get_quaternion, "Returns quaternion value")
-        .def("get_wxyz",        &franka_o80::State::get_wxyz,       "Returns quaternion value given as wxyz")
-        .def("get_euler",       &franka_o80::State::get_euler,      "Returns quaternion value given as Euler angles")
-        .def("get_mode",        &franka_o80::State::get_mode,       "Returns mode value")
-        .def("get_error",       &franka_o80::State::get_error,      "Returns error value")
-        .def("to_string",       &franka_o80::State::to_string,      "Returns string representation of state")
+        pybind11::class_<franka_o80::State> (m, "State",                "Actuator state. Some dynamic typization is done within the class, so it may contain real number, quaternion, franka_o80.Mode or franka_o80.Error")
+        .def(pybind11::init<>(),                                        "Creates state with zero real value")
+        .def(pybind11::init<double>(),                                  "Creates state with given real value")
+        .def(pybind11::init<const Eigen::Quaterniond&>(),               "Creates state with given quaternion value")
+        .def(pybind11::init<const Eigen::Matrix<double, 4, 1>&>(),      "Creates state with given quaternion value given as wxyz")
+        .def(pybind11::init<const Eigen::Matrix<double, 3, 1>&>(),      "Creates state with given quaternion value given as Euler angles")
+        .def(pybind11::init<franka_o80::RobotMode>(),                   "Creates state with given robot mode value")
+        .def(pybind11::init<franka_o80::GripperMode>(),                 "Creates state with given gripper mode value")
+        .def(pybind11::init<franka_o80::Error>(),                       "Creates state with given error value")
+        .def(pybind11::init<const franka_o80::State&>(),                "Copies state")
+        .def("set_real",        &franka_o80::State::set_real,           "Sets state's value to real value")
+        .def("set_quaternion",  &franka_o80::State::set_quaternion,     "Sets state's value to quaternion value")
+        .def("set_wxyz",        &franka_o80::State::set_wxyz,           "Sets state's value to quaternion value given as wxyz")
+        .def("set_euler",       &franka_o80::State::set_euler,          "Sets state's value to quaternion value given as Euler angles")
+        .def("set_robot_mode",  &franka_o80::State::set_robot_mode,     "Sets state's value to robot mode value")
+        .def("set_gripper_mode",&franka_o80::State::set_gripper_mode,   "Sets state's value to gripper mode value")
+        .def("set_error",       &franka_o80::State::set_error,          "Sets state's value to error value")
+        .def("get_type",        &franka_o80::State::get_type,           "Returns state's type")
+        .def("get_real",        &franka_o80::State::get_real,           "Returns real value")
+        .def("get_quaternion",  &franka_o80::State::get_quaternion,     "Returns quaternion value")
+        .def("get_wxyz",        &franka_o80::State::get_wxyz,           "Returns quaternion value given as wxyz")
+        .def("get_euler",       &franka_o80::State::get_euler,          "Returns quaternion value given as Euler angles")
+        .def("get_robot_mode",  &franka_o80::State::get_robot_mode,     "Returns robot mode value")
+        .def("get_gripper_mode",&franka_o80::State::get_gripper_mode,   "Returns gripper mode value")
+        .def("get_error",       &franka_o80::State::get_error,          "Returns error value")
+        .def("to_string",       &franka_o80::State::to_string,          "Returns string representation of state")
         .def(pybind11::self == pybind11::self)
         .def(pybind11::self != pybind11::self),
-        "Type",                                                     "Enumeration of types of state")
-        .value("real",          franka_o80::State::Type::real,      "Real number")
-        .value("quaternion",    franka_o80::State::Type::quaternion,"Quaternion")
-        .value("mode",          franka_o80::State::Type::mode,      "franka_o80.Mode")
-        .value("error",         franka_o80::State::Type::error,     "franka_o80.Error");
+        "Type",                                                         "Enumeration of types of state")
+        .value("real",          franka_o80::State::Type::real,          "Real number")
+        .value("quaternion",    franka_o80::State::Type::quaternion,    "Quaternion")
+        .value("robot_mode",    franka_o80::State::Type::robot_mode,    "franka_o80.RobotMode")
+        .value("gripper_mode",  franka_o80::State::Type::gripper_mode,  "franka_o80.GripperMode")
+        .value("error",         franka_o80::State::Type::error,         "franka_o80.Error");
     
     //states.hpp
     m.def("default_states", &franka_o80::default_states,    "Returns robot's default states");

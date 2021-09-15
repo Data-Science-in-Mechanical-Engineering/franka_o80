@@ -66,7 +66,8 @@ void Control::help()
 Control::Control(std::string id)
 {
     front_ = std::unique_ptr<franka_o80::FrontEnd>(new franka_o80::FrontEnd(id));
-    front_->add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
+    front_->add_command(franka_o80::robot_mode, franka_o80::RobotMode::intelligent_position, o80::Mode::QUEUE);
+    front_->add_command(franka_o80::gripper_mode, franka_o80::GripperMode::grasp, o80::Mode::QUEUE);
     front_->reset_next_index();
     oldtarget_ = front_->wait_for_next().get_observed_states();
     impedances_[0] = oldtarget_.get(franka_o80::joint_stiffness[0]).get_real() / franka_o80::default_states().get(franka_o80::joint_stiffness[0]).get_real();
@@ -97,26 +98,28 @@ void Control::command_echo()
     franka_o80::States states = front_->wait_for_next().get_observed_states();
 
     //General    
-    std::cout << "control_mode         : " << states.get(franka_o80::control_mode).to_string() << std::endl;
+    std::cout << "robot_mode           : " << states.get(franka_o80::robot_mode).to_string() << std::endl;
+    std::cout << "gripper_mode         : " << states.get(franka_o80::gripper_mode).to_string() << std::endl;
     std::cout << "control_error        : " << states.get(franka_o80::control_error).to_string() << std::endl;
     std::cout << "control_reset        : " << states.get(franka_o80::control_reset).get_real() << std::endl;
     std::cout << "execution time       : " << execution_time_ << std::endl;
 
     //Gripper
     std::cout << "gripper_width        : " << states.get(franka_o80::gripper_width).get_real() << std::endl;
-    std::cout << "gripper_temperature  : " << states.get(franka_o80::gripper_temperature).get_real() << std::endl;
+    std::cout << "gripper_velocity     : " << states.get(franka_o80::gripper_velocity).get_real() << std::endl;
     std::cout << "gripper_force        : " << states.get(franka_o80::gripper_force).get_real() << std::endl;
+    std::cout << "gripper_temperature  : " << states.get(franka_o80::gripper_temperature).get_real() << std::endl;
 
     //Robot joints
     std::cout << "joint_position       :"; for (size_t i = 0; i < 7; i++) std::cout << " " << 180.0 * states.get(franka_o80::joint_position[i]).get_real() / M_PI; std::cout << std::endl;
     std::cout << "joint_torque         :"; for (size_t i = 0; i < 7; i++) std::cout << " " << states.get(franka_o80::joint_torque[i]).get_real(); std::cout << std::endl;
-    std::cout << "joint_impedance      :"; std::cout << impedances_[0] << std::endl;
+    std::cout << "joint_impedance      : " << impedances_[0] << std::endl;
 
     //Robot cartesian
     std::cout << "cartesian_position   :"; for (size_t i = 0; i < 3; i++) std::cout << " " << states.get(franka_o80::cartesian_position[i]).get_real(); std::cout << std::endl;
     std::cout << "cartesian_orientation:"; for (size_t i = 0; i < 4; i++) std::cout << " " << states.get(franka_o80::cartesian_orientation).get_wxyz()[i];
     std::cout << " ("; for (size_t i = 0; i < 3; i++) std::cout << " " << 180.0 * states.get(franka_o80::cartesian_orientation).get_euler()[i] / M_PI; std::cout << " )" << std::endl;
-    std::cout << "cartesian_impedance  :"; std::cout << impedances_[1] << " " << impedances_[2] << std::endl;
+    std::cout << "cartesian_impedance  : " << impedances_[1] << " " << impedances_[2] << std::endl;
 }
 
 void Control::command_pass()
@@ -156,16 +159,14 @@ void Control::command_joint_position(char command, char sign, double value)
         return;
     }
 
-    //Create actuator state
+    //Edit joint state
     size_t actuator = franka_o80::joint_position[command - '1'];
-    franka_o80::State state;
-    if (sign == '+') state.set_real(newtarget_.get(actuator).get_real() + M_PI * value / 180.0);
-    else if (sign == '-') state.set_real(newtarget_.get(actuator).get_real() - M_PI * value / 180.0);
-    else state.set_real(M_PI * value / 180.0);
+    if (sign == '+') newtarget_.set(actuator, newtarget_.get(actuator).get_real() + M_PI * value / 180.0);
+    else if (sign == '-') newtarget_.set(actuator, newtarget_.get(actuator).get_real() - M_PI * value / 180.0);
+    else newtarget_.set(actuator, M_PI * value / 180.0);
 
     //Add command
     commands_insert(std::string(1, command));
-    newtarget_.set(actuator, state);
 }
 
 void Control::command_cartesian_position(char command, char sign, double value)
@@ -177,16 +178,14 @@ void Control::command_cartesian_position(char command, char sign, double value)
         return;
     }
 
-    //Create state
+    //Edit cartesian state
     size_t actuator = franka_o80::cartesian_position[command - 'x'];
-    franka_o80::State state;
-    if (sign == '+') state.set_real(newtarget_.get(actuator).get_real() + value);
-    else if (sign == '-') state.set_real(newtarget_.get(actuator).get_real() - value);
-    else state.set_real(value);
+    if (sign == '+') newtarget_.set(actuator, newtarget_.get(actuator).get_real() + value);
+    else if (sign == '-') newtarget_.set(actuator, newtarget_.get(actuator).get_real() - value);
+    else newtarget_.set(actuator, value);
 
     //Add command
     commands_insert(std::string(1, command));
-    newtarget_.set(actuator, state);
 }
 
 void Control::command_cartesian_orientation(char command, char sign, const double values[4])
@@ -198,16 +197,18 @@ void Control::command_cartesian_orientation(char command, char sign, const doubl
         return;
     }
 
-    //Create state
-    franka_o80::State state;
-    if (command == 'q') state.set_wxyz(Eigen::Matrix<double, 4, 1>(values[0], values[1], values[2], values[3]));
-    else state.set_euler(Eigen::Matrix<double, 3, 1>(M_PI * values[0] / 180, M_PI * values[1] / 180, M_PI * values[2] / 180));
-    if (sign == '+') state.set_quaternion(state.get_quaternion() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
-    else if (sign == '-') state.set_quaternion(state.get_quaternion().inverse() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
+    ///Create quanterion value
+    franka_o80::State value;
+    if (command == 'q') value.set_wxyz(Eigen::Matrix<double, 4, 1>(values[0], values[1], values[2], values[3]));
+    else value.set_euler(Eigen::Matrix<double, 3, 1>(M_PI * values[0] / 180, M_PI * values[1] / 180, M_PI * values[2] / 180));
+
+    //Edit orientation state
+    if (sign == '+') newtarget_.set(franka_o80::cartesian_orientation, value.get_quaternion() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
+    else if (sign == '-') newtarget_.set(franka_o80::cartesian_orientation, value.get_quaternion().inverse() * newtarget_.get(franka_o80::cartesian_orientation).get_quaternion());
+    else newtarget_.set(franka_o80::cartesian_orientation, value);
     
     //Add command
     commands_insert("q");
-    newtarget_.set(franka_o80::cartesian_orientation, state);
 }
 
 void Control::command_gripper_width(char command, char sign, double value)
@@ -219,28 +220,36 @@ void Control::command_gripper_width(char command, char sign, double value)
         return;
     }
 
-    //Create state
-    franka_o80::State state;
-    if (sign == '+') state.set_real(newtarget_.get(franka_o80::gripper_width).get_real() + value);
-    else if (sign == '-') state.set_real(newtarget_.get(franka_o80::gripper_width).get_real() - value);
-    else state.set_real(value);
+    //Edit width and velocity states
+    if (sign == '+')
+    {
+        newtarget_.set(franka_o80::gripper_velocity, abs(value) / execution_time_);
+        newtarget_.set(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width).get_real() + value);
+    }
+    else if (sign == '-')
+    {
+        newtarget_.set(franka_o80::gripper_velocity, abs(value) / execution_time_);
+        newtarget_.set(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width).get_real() - value);
+    }
+    else
+    {
+        newtarget_.set(franka_o80::gripper_velocity, abs(newtarget_.get(franka_o80::gripper_width).get_real() - value) / execution_time_);
+        newtarget_.set(franka_o80::gripper_width, value);
+    }
 
     //Add command
     commands_insert("g");
-    newtarget_.set(franka_o80::gripper_width, state);
 }
 
 void Control::command_gripper_force(char command, char sign, double value)
 {
-    //Create state
-    franka_o80::State state;
-    if (sign == '+') state.set_real(newtarget_.get(franka_o80::gripper_force).get_real() + value);
-    else if (sign == '-') state.set_real(newtarget_.get(franka_o80::gripper_force).get_real() - value);
-    else state.set_real(value);
+    //Edit force
+    if (sign == '+') newtarget_.set(franka_o80::gripper_force, newtarget_.get(franka_o80::gripper_force).get_real() + value);
+    else if (sign == '-') newtarget_.set(franka_o80::gripper_force, newtarget_.get(franka_o80::gripper_force).get_real() - value);
+    else newtarget_.set(franka_o80::gripper_force, value);
 
     //Add command
-    newtarget_.set(franka_o80::gripper_force, state);
-    front_->add_command(franka_o80::gripper_force, state, o80::Mode::QUEUE);
+    commands_insert("k");
 }
 
 void Control::command_impedance(char command, char sign, const double values[3])
@@ -264,16 +273,19 @@ void Control::command_impedance(char command, char sign, const double values[3])
 
     for (size_t i = 0; i < 7; i++)
     {
-        front_->add_command(franka_o80::joint_stiffness[i], franka_o80::default_states().get(franka_o80::joint_stiffness[i]).get_real() * impedances_[0], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::joint_damping[i], franka_o80::default_states().get(franka_o80::joint_damping[i]).get_real() * sqrt(impedances_[0]), o80::Mode::QUEUE);
+        newtarget_.set(franka_o80::joint_stiffness[i], franka_o80::default_states().get(franka_o80::joint_stiffness[i]).get_real() * impedances_[0]);
+        newtarget_.set(franka_o80::joint_damping[i], franka_o80::default_states().get(franka_o80::joint_damping[i]).get_real() * sqrt(impedances_[0]));
     }
     for (size_t i = 0; i < 3; i++)
     {
-        front_->add_command(franka_o80::cartesian_stiffness[i], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i]).get_real() * impedances_[1], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_damping[i], franka_o80::default_states().get(franka_o80::cartesian_damping[i]).get_real() * sqrt(impedances_[1]), o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_stiffness[i + 3], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i + 3]).get_real() * impedances_[2], o80::Mode::QUEUE);
-        front_->add_command(franka_o80::cartesian_damping[i + 3], franka_o80::default_states().get(franka_o80::cartesian_damping[i + 3]).get_real() * sqrt(impedances_[2]), o80::Mode::QUEUE);
+        newtarget_.set(franka_o80::cartesian_stiffness[i], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i]).get_real() * impedances_[1]);
+        newtarget_.set(franka_o80::cartesian_damping[i], franka_o80::default_states().get(franka_o80::cartesian_damping[i]).get_real() * sqrt(impedances_[1]));
+        newtarget_.set(franka_o80::cartesian_stiffness[i + 3], franka_o80::default_states().get(franka_o80::cartesian_stiffness[i + 3]).get_real() * impedances_[2]);
+        newtarget_.set(franka_o80::cartesian_damping[i + 3], franka_o80::default_states().get(franka_o80::cartesian_damping[i + 3]).get_real() * sqrt(impedances_[2]));
     }
+
+    //Add command
+    commands_insert("i");
 }
 
 void Control::execute(std::string input)
@@ -431,21 +443,32 @@ void Control::loop()
         }
         if (commands_count("g"))
         {
-            if (newtarget_.get(franka_o80::gripper_width).get_real() > 0.1 || newtarget_.get(franka_o80::gripper_width).get_real() < 0)
+            front_->add_command(franka_o80::gripper_velocity, newtarget_.get(franka_o80::gripper_velocity), o80::Mode::QUEUE);
+            front_->add_command(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width), o80::Mode::QUEUE);
+        }
+        if (commands_count("k"))
+        {
+            front_->add_command(franka_o80::gripper_force, newtarget_.get(franka_o80::gripper_force), o80::Mode::QUEUE);
+        }
+        if (commands_count("i"))
+        {
+            for (size_t i = 0; i < 7; i++)
             {
-                std::cout << "Invalid gripper position" << std::endl;
+                front_->add_command(franka_o80::joint_stiffness[i], newtarget_.get(franka_o80::joint_stiffness[i]), o80::Mode::QUEUE);
+                front_->add_command(franka_o80::joint_damping[i], newtarget_.get(franka_o80::joint_damping[i]), o80::Mode::QUEUE);
             }
-            else
+            for (size_t i = 0; i < 6; i++)
             {
-                front_->add_command(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width), o80::Duration_us::milliseconds(1000.0 * execution_time_), o80::Mode::QUEUE);
-                oldtarget_.set(franka_o80::gripper_width, newtarget_.get(franka_o80::gripper_width));
+                front_->add_command(franka_o80::cartesian_stiffness[i], newtarget_.get(franka_o80::cartesian_stiffness[i]), o80::Mode::QUEUE);
+                front_->add_command(franka_o80::cartesian_damping[i], newtarget_.get(franka_o80::cartesian_damping[i]), o80::Mode::QUEUE);
             }
         }
         if (commands_count("p"))
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1000 * execution_time_)));
         }
-        if (commands_count("1234567 xyzq g")) front_->pulse_and_wait();
+        if (commands_count("1234567 xyzq g k i")) front_->pulse_and_wait();
+        if (commands_count("g") && !commands_count("1234567 xyzq k i")) std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1000 * execution_time_)));
         commands_.clear();
     }
 }

@@ -11,7 +11,7 @@ namespace franka_o80
 typedef o80::FrontEnd<franka_o80::queue_size, franka_o80::actuator_number, franka_o80::State, o80::VoidExtendedState> FrontEnd;
 } // namespace franka_o80
 
-/** @mainpage Welcome to `franka_o80 0.9.0`!
+/** @mainpage Welcome to `franka_o80 1.0.0`!
 Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 @tableofcontents
@@ -23,7 +23,7 @@ Then simplest `C++` example is:
 int main()
 {
 	franka_o80::FrontEnd frontend("ID"); //ID is a placeholder for shared memory identifier, it needs to be the same for front- and backend
-	frontend.add_command(franka_o80::control_mode, franka_o80::Mode::intelligent_position, o80::Mode::QUEUE);
+	frontend.add_command(franka_o80::robot_mode, franka_o80::RobotMode::intelligent_position, o80::Mode::QUEUE);
 	frontend.add_command(franka_o80::joint_position[0], 1.0, o80::Duration_us::seconds(5), o80::Mode::QUEUE);
 	frontend.pulse_and_wait();
 }
@@ -32,7 +32,7 @@ It can be built with the following `CMakeLists.txt`:
 ```
 project(example)
 cmake_minimum_required(VERSION 3.14.0)
-find_package(franka_o80 0.9.0 REQUIRED)
+find_package(franka_o80 1.0.0 REQUIRED)
 add_executable(example example.cpp)
 target_link_libraries(example PRIVATE franka_o80)
 ```
@@ -45,7 +45,7 @@ Correspondent `Python` example follows:
 import o80
 import franka_o80
 frontend = franka_o80.FrontEnd("ID")
-frontend.add_command(franka_o80.control_mode(), franka_o80.State(franka_o80.Mode.intelligent_position), o80.Mode.QUEUE)
+frontend.add_command(franka_o80.robot_mode(), franka_o80.State(franka_o80.RobotMode.intelligent_position), o80.Mode.QUEUE)
 frontend.add_command(franka_o80.joint_position(0), franka_o80.State(1.0), o80.Duration_us.seconds(5), o80.Mode.QUEUE)
 frontend.pulse_and_wait()
 ```
@@ -95,11 +95,11 @@ cd build
 cmake ..
 cmake --build .
 sudo cmake --install .
-#Next steps are required only if you plan to use pybind'ded classes from franka_o80 in your pybind'ded library
+sudo ldconfig
+#Further steps are required only if you plan to use pybind'ded classes from franka_o80 in your pybind'ded library
 cmake .. -Dfranka_o80_omit_include_directories=yes
 sudo cmake --build .
 cmake --install .
-sudo ldconfig
 ```
 
 @section Documentation
@@ -109,12 +109,12 @@ sudo ldconfig
 `franka_o80` may sometimes be non-intuitive. So here are some important notes:
  - **CAUTION!** To make `Python` bindings work properly, it is required to install [o80](https://github.com/intelligent-soft-robots/o80) from source and add `-Do80_DIR=/absolute_path_to_o80_source/install`. It is an issue of [o80](https://github.com/intelligent-soft-robots/o80) and will be fixed in it's future releases.
  - `franka_o80` is a specialization of some [o80](https://github.com/intelligent-soft-robots/o80) templates. Some vital general functions may be implemented and documented in [o80](https://github.com/intelligent-soft-robots/o80), not `franka_o80`.
- - The project consists of frontend and backend. **Frontend** is responsible for sending commands and receiving observations from backend. `franka_o80::FrontEnd` class is the main class to be used by programmers in `C++` or `Python`. **Backend** is responsible for communication with the [libfranka](https://github.com/frankaemika/libfranka) and needs to be started on the machine in order to use frontends. This could be done with `franka_o80_backend` executable or with some functions, like `franka_o80::start_standalone`.
- - All variables in `franka_o80` are implemented as actuators in terms of [o80](https://github.com/intelligent-soft-robots/o80), even control mode, reset signal, error, velocities, torques, etc., and they are controlled with `FrontEnd::add_command` like real actuators. When reading observations, all actuators are defined. But some of them (like `franka_o80::joint_position` and `franka_o80::cartesian_position`) obviously contradict each other, and which of them will be used to control the robot, is decided by `control_mode` actuator.
- - All actuators, like `franka_o80::control_mode` or `franka_o80::joint_position`, are just constant numbers. They are only useful in `FrontEnd::add_command`, `States::get` and `States::set` functions.
- - FrontEnd does not throw exceptions when an error in backend occurs. The only way to know about backend errors is to read `franka_o80::control_error` actuator.
- - All `FrontEnd::add_command` functions accept `franka_o80::State`. This is why the class encapsulates both real numbers, quaternions, mode and error enumerations, and some dynamic typization is done in the class (even in `C++`). Backend will, for example, expect the state applied to `control_mode` actuator to contain `franka_o80::Mode` value, but frontend does not check state types and does not throw exceptions. The only way to know that `Frontend::add_command` was called with wrong state type is to read `franka_o80::control_error` actuator.
- - The gripper is controlled with `franka_o80::gripper_grasped`, and may only be in "opened" or "closed" state. No finger width control is currently possible.
+ - The project consists of frontend and backend. **Frontend** is responsible for sending commands and receiving observations from backend. `FrontEnd` class is the main class to be used by programmers in `C++` or `Python`. **Backend** is responsible for communication with the [libfranka](https://github.com/frankaemika/libfranka) and needs to be started on the machine in order to use frontends. This could be done with `franka_o80_backend` executable or with some functions, like `start_standalone`.
+ - All variables in `franka_o80` are implemented as actuators in terms of [o80](https://github.com/intelligent-soft-robots/o80), even control mode, reset signal, error, velocities, torques, etc., and they are controlled with `FrontEnd::add_command` like real actuators. When reading observations, all actuators are defined. But some of them (like `joint_position` and `cartesian_position`) obviously contradict each other, and which of them will be used to control the robot, is decided by `robot_mode` and `gripper_mode` actuators.
+ - All actuators, like `robot_mode` or `joint_position`, are just constant numbers. They are only useful in `FrontEnd::add_command`, `States::get` and `States::set` functions.
+ - FrontEnd does not throw exceptions when an error in backend occurs. The only way to know about backend errors is to read `control_error` actuator.
+ - All `FrontEnd::add_command` functions accept `State`. This is why the class encapsulates both real numbers, quaternions, mode and error enumerations, and some dynamic typization is done in the class (even in `C++`). Backend will, for example, expect the state applied to `robot_mode` actuator to contain `RobotMode` value, but frontend does not check state types and does not throw exceptions. The only way to know that `Frontend::add_command` was called with wrong state type is to read `control_error` actuator.
+ - The gripper is controlled in non-[o80](https://github.com/intelligent-soft-robots/o80) style. The gripper is moved with the velocity specified in `gripper_velocity`, duration given to `FrontEnd::add_command` has no influence on it.
 
 @section Contributors
  - Kyrylo Sovailo

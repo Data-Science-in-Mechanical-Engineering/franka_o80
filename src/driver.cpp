@@ -42,7 +42,7 @@ void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState 
 
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     bool input_stiffness_change = false;
@@ -52,14 +52,14 @@ void franka_o80::Driver::robot_dummy_control_function_(const franka::RobotState 
     }
 
     //Exit
-    if (input_finished || (input_error == Error::ok && !input_reset && input_mode != Mode::invalid) || input_stiffness_change)
+    if (input_finished || (input_error == Error::ok && !input_reset && input_mode != RobotMode::invalid) || input_stiffness_change)
     {
         velocities->motion_finished = true;
     }
 
     //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, Mode::invalid);
+    output_.set(robot_mode, RobotMode::invalid);
     if (input_reset) output_.set(control_error, Error::ok);
 }
 
@@ -70,15 +70,15 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
 
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     //I assume that stiffness and damping don't have influence on torque functions, so they are not checked
 
     //Exit
-    bool reenter = input_mode != mode_ && !
-    ((mode_ == Mode::torque || mode_ == Mode::intelligent_position || mode_ == Mode::intelligent_cartesian_position) &&
-    (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position));
+    bool reenter = input_mode != robot_mode_ && !
+    ((robot_mode_ == RobotMode::torque || robot_mode_ == RobotMode::intelligent_position || robot_mode_ == RobotMode::intelligent_cartesian_position) &&
+    (input_mode == RobotMode::torque || input_mode == RobotMode::intelligent_position || input_mode == RobotMode::intelligent_cartesian_position));
     if (reenter || input_finished || input_error != Error::ok || input_reset)
     {
         //Reading more input
@@ -93,7 +93,7 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
         torques->motion_finished = true;
     }
     //Intelligent position
-    else if (input_mode == Mode::intelligent_position)
+    else if (input_mode == RobotMode::intelligent_position)
     {
         //Reading more input
         Eigen::Matrix<double, 7, 1> input_target_positions, input_stiffness, input_damping;
@@ -115,7 +115,7 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
         Eigen::Matrix<double, 7, 1>::Map(&torques->tau_J[0]) = joint_torques;
     }
     //Intelligent cartesian position
-    else if (input_mode == Mode::intelligent_cartesian_position)
+    else if (input_mode == RobotMode::intelligent_cartesian_position)
     {
         //Reading more input
         Eigen::Matrix<double, 3, 1> input_target_position;
@@ -156,7 +156,7 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
     
     //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, torques->motion_finished ? Mode::invalid : input_mode);
+    output_.set(robot_mode, torques->motion_finished ? RobotMode::invalid : input_mode);
     output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
@@ -168,7 +168,7 @@ void franka_o80::Driver::robot_position_control_function_(const franka::RobotSta
     
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     bool input_stiffness_change = false;
@@ -178,7 +178,7 @@ void franka_o80::Driver::robot_position_control_function_(const franka::RobotSta
     }
 
     //Exit
-    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
+    if (input_mode != robot_mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
     {
         for (size_t i = 0; i < 7; i++) positions->q[i] = robot_state.q[i];
         positions->motion_finished = true;
@@ -191,7 +191,7 @@ void franka_o80::Driver::robot_position_control_function_(const franka::RobotSta
 
    //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, positions->motion_finished ? Mode::invalid : input_mode);
+    output_.set(robot_mode, positions->motion_finished ? RobotMode::invalid : input_mode);
     output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
@@ -203,7 +203,7 @@ void franka_o80::Driver::robot_velocity_control_function_(const franka::RobotSta
     
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     bool input_stiffness_change = false;
@@ -213,7 +213,7 @@ void franka_o80::Driver::robot_velocity_control_function_(const franka::RobotSta
     }
 
     //Exit
-    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
+    if (input_mode != robot_mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
     {
         for (size_t i = 0; i < 7; i++) velocities->dq[i] = 0.0;
         velocities->motion_finished = true;
@@ -226,7 +226,7 @@ void franka_o80::Driver::robot_velocity_control_function_(const franka::RobotSta
 
     //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, velocities->motion_finished ? Mode::invalid : input_mode);
+    output_.set(robot_mode, velocities->motion_finished ? RobotMode::invalid : input_mode);
     output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
@@ -238,7 +238,7 @@ void franka_o80::Driver::robot_cartesian_position_control_function_(const franka
     
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     bool input_stiffness_change = false;
@@ -248,7 +248,7 @@ void franka_o80::Driver::robot_cartesian_position_control_function_(const franka
     }
 
     //Exit
-    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
+    if (input_mode != robot_mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
     {
         for (size_t i = 0; i < 16; i++) positions->O_T_EE[i] = robot_state.O_T_EE[i];
         for (size_t i = 0; i < 2; i++) positions->elbow[i] = robot_state.elbow[i];
@@ -267,7 +267,7 @@ void franka_o80::Driver::robot_cartesian_position_control_function_(const franka
 
     //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, positions->motion_finished ? Mode::invalid : input_mode);
+    output_.set(robot_mode, positions->motion_finished ? RobotMode::invalid : input_mode);
     output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
@@ -279,7 +279,7 @@ void franka_o80::Driver::robot_cartesian_velocity_control_function_(const franka
         
     //Reading input
     bool input_reset = input_.get(control_reset).get_real() > 0.0;
-    Mode input_mode = input_.get(control_mode).get_mode();
+    RobotMode input_mode = input_.get(robot_mode).get_robot_mode();
     bool input_finished = input_finished_;
     Error input_error = output_.get(control_error).get_error();
     bool input_stiffness_change = false;
@@ -289,7 +289,7 @@ void franka_o80::Driver::robot_cartesian_velocity_control_function_(const franka
     }
 
     //Exit
-    if (input_mode != mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
+    if (input_mode != robot_mode_ || input_finished || input_error != Error::ok || input_reset || input_stiffness_change)
     {
         for (size_t i = 0; i < 6; i++) velocities->O_dP_EE[i] = 0.0;
         velocities->motion_finished = true;
@@ -308,7 +308,7 @@ void franka_o80::Driver::robot_cartesian_velocity_control_function_(const franka
 
     //Writing output
     robot_write_output_(robot_state);
-    output_.set(control_mode, velocities->motion_finished ? Mode::invalid : input_mode);
+    output_.set(robot_mode, velocities->motion_finished ? RobotMode::invalid : input_mode);
     output_.set(control_reset, input_reset ? 1.0 : 0.0);
     if (input_reset) output_.set(control_error, Error::ok);
 }
@@ -319,7 +319,7 @@ void franka_o80::Driver::robot_control_function_()
     while (true)
     {
         bool input_reset;
-        Mode input_mode;
+        RobotMode input_mode;
         bool input_finished;
         Error input_error;
         std::array<double, 7> input_joint_stiffness;
@@ -330,7 +330,7 @@ void franka_o80::Driver::robot_control_function_()
             
             //Reading input
             input_reset = input_.get(control_reset).get_real() > 0.0;
-            input_mode = input_.get(control_mode).get_mode();
+            input_mode = input_.get(robot_mode).get_robot_mode();
             input_finished = input_finished_;
             input_error = output_.get(control_error).get_error();
             for (size_t i = 0; i < 7; i++) input_joint_stiffness[i] = input_.get(joint_stiffness[i]).get_real();
@@ -353,27 +353,27 @@ void franka_o80::Driver::robot_control_function_()
             robot_->setJointImpedance(input_joint_stiffness);
             cartesian_stiffness_ = Eigen::Matrix<double, 6, 1>::Map(&input_cartesian_stiffness[0]);
             robot_->setCartesianImpedance(input_cartesian_stiffness);
-            mode_ = input_mode;
+            robot_mode_ = input_mode;
 
 
             //Entering loop
             Driver *driver = this;
             output_error = Error::ok;
-            if (input_reset || input_error != Error::ok || input_mode == Mode::invalid) robot_->control(
+            if (input_reset || input_error != Error::ok || input_mode == RobotMode::invalid) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
                     franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_dummy_control_function_(robot_state, &velocities);
                     return velocities;
                 });
-            else if (input_mode == Mode::torque || input_mode == Mode::intelligent_position || input_mode == Mode::intelligent_cartesian_position) robot_->control(
+            else if (input_mode == RobotMode::torque || input_mode == RobotMode::intelligent_position || input_mode == RobotMode::intelligent_cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
                     franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_torque_control_function_(robot_state, &torques);
                     return torques;
                 });
-            else if (input_mode == Mode::torque_position) robot_->control(
+            else if (input_mode == RobotMode::torque_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
                     franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -386,7 +386,7 @@ void franka_o80::Driver::robot_control_function_()
                     driver->robot_position_control_function_(robot_state, &positions);
                     return positions;
                 });
-            else if (input_mode == Mode::torque_velocity) robot_->control(
+            else if (input_mode == RobotMode::torque_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
                     franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -399,7 +399,7 @@ void franka_o80::Driver::robot_control_function_()
                     driver->robot_velocity_control_function_(robot_state, &velocities);
                     return velocities;
                 });
-            else if (input_mode == Mode::torque_cartesian_position) robot_->control(
+            else if (input_mode == RobotMode::torque_cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
                     franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -412,7 +412,7 @@ void franka_o80::Driver::robot_control_function_()
                     driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
                     return cartesian_position;
                 });
-            else if (input_mode == Mode::torque_cartesian_velocity) robot_->control(
+            else if (input_mode == RobotMode::torque_cartesian_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::Torques
                 {
                     franka::Torques torques(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -425,28 +425,28 @@ void franka_o80::Driver::robot_control_function_()
                     driver->robot_cartesian_velocity_control_function_(robot_state, &cartesian_velocity);
                     return cartesian_velocity;
                 });
-            else if (input_mode == Mode::position) robot_->control(
+            else if (input_mode == RobotMode::position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointPositions
                 {
                     franka::JointPositions positions(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_position_control_function_(robot_state, &positions);
                     return positions;
                 });
-            else if (input_mode == Mode::velocity) robot_->control(
+            else if (input_mode == RobotMode::velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::JointVelocities
                 {
                     franka::JointVelocities velocities(std::array<double, 7>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
                     driver->robot_velocity_control_function_(robot_state, &velocities);
                     return velocities;
                 });
-            else if (input_mode == Mode::cartesian_position) robot_->control(
+            else if (input_mode == RobotMode::cartesian_position) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianPose
                 {
                     franka::CartesianPose cartesian_position(std::array<double, 16>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
                     driver->robot_cartesian_position_control_function_(robot_state, &cartesian_position);
                     return cartesian_position;
                 });
-            else if (input_mode == Mode::cartesian_velocity) robot_->control(
+            else if (input_mode == RobotMode::cartesian_velocity) robot_->control(
                 [driver](const franka::RobotState &robot_state, franka::Duration) -> franka::CartesianVelocities
                 {
                     franka::CartesianVelocities cartesian_velocity(std::array<double, 6>({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}), std::array<double, 2>({0.0, 0.0}));
@@ -498,9 +498,7 @@ void franka_o80::Driver::gripper_control_function_()
 {
     Error output_error = Error::ok; //one round error
     double previous_input_width = std::numeric_limits<double>::quiet_NaN();
-    size_t previous_input_count = 0;
-    double previous_grasp_target = std::numeric_limits<double>::quiet_NaN();
-    double previous_grasp_result = std::numeric_limits<double>::quiet_NaN();
+    
     while (true)
     {
         //Reading state
@@ -529,11 +527,11 @@ void franka_o80::Driver::gripper_control_function_()
 
         //Communicating
         bool input_reset;
-        Mode input_mode;
+        GripperMode input_mode;
         bool input_finished;
         Error input_error;
-        size_t input_count;
         double input_width;
+        double input_velocity;
         double input_force;
         {
             //Locking
@@ -541,61 +539,45 @@ void franka_o80::Driver::gripper_control_function_()
 
             //Reading input
             input_reset = input_.get(control_reset).get_real() > 0.0;
-            input_mode = input_.get(control_mode).get_mode();
+            input_mode = input_.get(gripper_mode).get_gripper_mode();
             input_finished = input_finished_;
             input_error = output_.get(control_error).get_error();
-            input_count = input_count_;
             input_width = input_.get(gripper_width).get_real();
+            input_velocity = input_.get(gripper_velocity).get_real();
             input_force = input_.get(gripper_force).get_real();
 
             //Writing output
-            output_.set(gripper_width, output_width);
             output_.set(gripper_temperature, output_temperature);
-            output_.set(control_reset, input_reset ? 1.0 : 0.0);
+            output_.set(gripper_width, output_width);
+            output_.set(gripper_velocity, input_velocity);
             output_.set(gripper_force, input_force);
+            output_.set(control_reset, input_reset ? 1.0 : 0.0);
             if (input_reset) { output_.set(control_error, Error::ok); input_error = Error::ok; }
             else if (input_error == Error::ok && output_error != Error::ok) { output_.set(control_error, output_error); input_error = output_error; }
+            if (input_reset || input_finished || input_error != Error::ok) { output_.set(gripper_mode, GripperMode::invalid); input_mode = GripperMode::invalid; }
+            else output_.set(gripper_mode, input_mode);
         }
         
-        //Checking state
+        //Action
         output_error = Error::ok;
         if (input_finished) return;
-        if (!input_reset && input_error == Error::ok && input_mode != Mode::invalid
-        && previous_input_width == previous_input_width
-        && previous_input_width != input_width)
+        else if (!input_reset && input_error == Error::ok && input_mode != GripperMode::invalid && input_width != previous_input_width) try
         {
-            //Acting
-            Driver *driver = this;
-            double target = input_width > previous_input_width ? 0.1 : 0.0;
-            if (target != previous_grasp_target || abs(input_width - previous_grasp_result) > 0.005) //Magic number
-            {
-                double speed = abs(input_width - previous_input_width) * 1000.0 / (input_count - previous_input_count);
-                //std::cout << speed << " " << input_width << " " << previous_input_width << " " << input_count - previous_input_count << std::endl;
-                if (speed > 0.1) speed = 0.1; //Maximal speed, magic number
-                input_width = std::numeric_limits<double>::quiet_NaN(); //to invalidate previous_input_width later
-
-                try
-                {
-                    gripper_->grasp(target, speed, input_force, 0.1, 0.1);
-                    franka::GripperState state = gripper_->readOnce();
-                    previous_grasp_target = target;
-                    previous_grasp_result = state.width;
-                }
-                catch (franka::NetworkException &e)
-                {
-                    output_error = Error::gripper_network_exception;
-                }
-                catch (franka::InvalidOperationException)
-                {
-                    output_error = Error::gripper_invalid_operation_exception;
-                }
-                catch (...)
-                {
-                    output_error = Error::gripper_invalid_operation_exception;
-                }
-            }
+            if (input_mode == GripperMode::grasp) gripper_->grasp(input_width, input_velocity, input_force, 0.1, 0.1);
+            else gripper_->move(input_width, input_velocity);
         }
-        previous_input_count = input_count;
+        catch (franka::NetworkException &e)
+        {
+            output_error = Error::gripper_network_exception;
+        }
+        catch (franka::InvalidOperationException)
+        {
+            output_error = Error::gripper_invalid_operation_exception;
+        }
+        catch (...)
+        {
+            output_error = Error::gripper_invalid_operation_exception;
+        }
         previous_input_width = input_width;
     }
 }
@@ -642,7 +624,6 @@ void franka_o80::Driver::set(const DriverInput &input)
     {
         std::lock_guard<std::mutex> guard(input_output_mutex_);
         input_ = input;
-        input_count_++;
     }
 }
 

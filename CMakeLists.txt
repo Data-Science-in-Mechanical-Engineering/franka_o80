@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14.0)
 cmake_policy(SET CMP0048 NEW)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-project(franka_o80 VERSION 0.9.0)
+project(franka_o80 VERSION 1.0.0)
 
 ################
 # Dependencies #

@@ -5,10 +5,15 @@ franka_o80::States franka_o80::default_states()
 {
     States states;
     for (size_t i = 0; i < actuator_number; i++) states.values[i] = 0.0;
-    states.values[franka_o80::control_mode] = Mode::invalid;
-    states.values[franka_o80::control_error] = Error::ok;
+    states.values[franka_o80::robot_mode]       = RobotMode::invalid;
+    states.values[franka_o80::gripper_mode]     = GripperMode::invalid;
+    states.values[franka_o80::control_error]    = Error::ok;
+    states.values[franka_o80::control_reset]    = 0.0;
     
-    states.values[franka_o80::gripper_force] = 1.0;
+    states.values[franka_o80::gripper_width]        = 0.0;
+    states.values[franka_o80::gripper_velocity]     = 0.1;
+    states.values[franka_o80::gripper_force]        = 1.0;
+    states.values[franka_o80::gripper_temperature]  = 0.0;
 
     states.values[franka_o80::joint_position[0]] = 0.0;
     states.values[franka_o80::joint_position[1]] = -M_PI / 4;
@@ -41,10 +46,10 @@ franka_o80::States franka_o80::default_states()
     const double rotational_stiffness = 10.0;
     for (size_t i = 0; i < 3; i++)
     {
-        states.values[franka_o80::cartesian_stiffness[i]] = translational_stiffness;
-        states.values[franka_o80::cartesian_stiffness[i + 3]] = rotational_stiffness;
-        states.values[franka_o80::cartesian_damping[i]] = 2 * sqrt(translational_stiffness);
-        states.values[franka_o80::cartesian_damping[i + 3]] = 2 * sqrt(rotational_stiffness);
+        states.values[franka_o80::cartesian_stiffness[i]]       = translational_stiffness;
+        states.values[franka_o80::cartesian_stiffness[i + 3]]   = rotational_stiffness;
+        states.values[franka_o80::cartesian_damping[i]]         = 2 * sqrt(translational_stiffness);
+        states.values[franka_o80::cartesian_damping[i + 3]]     = 2 * sqrt(rotational_stiffness);
     }
     
     return states;

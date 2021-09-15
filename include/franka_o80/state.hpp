@@ -1,6 +1,7 @@
 #pragma once
 
-#include "mode.hpp"
+#include "robot_mode.hpp"
+#include "gripper_mode.hpp"
 #include "error.hpp"
 #include <stdexcept>
 #include <string>
@@ -12,7 +13,7 @@
 
 namespace franka_o80
 {
-///Actuator state. Some dynamic typization is done within the class, so it may contain real number, quaternion, `franka_o80::Mode` or `franka_o80::Error`
+///Actuator state. Some dynamic typization is done within the class, so it may contain real number, quaternion, `franka_o80::RobotMode`, `franka_o80::GripperMode` or `franka_o80::Error`
 class State
 {
 friend bool operator==(const State &a, const State &b);
@@ -22,10 +23,11 @@ public:
     ///Type of state
     enum class Type
     {
-        real,       ///< Real number
-        quaternion, ///< Quaternion
-        mode,       ///< `franka_o80::Mode`
-        error       ///< `franka_o80::Error`
+        real,           ///< Real number
+        quaternion,     ///< Quaternion
+        robot_mode,     ///< `franka_o80::RobotMode`
+        gripper_mode,   ///< `franka_o80::GripperMode`
+        error           ///< `franka_o80::Error`
     };
 
 private:
@@ -34,7 +36,8 @@ private:
     {
         double real;
         std::array<double, 4> quaternion;
-        Mode mode;
+        RobotMode robot_mode;
+        GripperMode gripper_mode;
         Error error;
     } value_;
 
@@ -49,8 +52,10 @@ public:
     State(const Eigen::Matrix<double, 4, 1> &value);
     ///Creates state with given quaternion value given as Euler angles
     State(const Eigen::Matrix<double, 3, 1> &value);
-    ///Creates state with given mode value
-    State(Mode value);
+    ///Creates state with given robot mode value
+    State(RobotMode value);
+    ///Creates state with given gripper mode value
+    State(GripperMode value);
     ///Creates state with given error value
     State(Error value);
     ///Copies state
@@ -64,8 +69,10 @@ public:
     void set_wxyz(const Eigen::Matrix<double, 4, 1> &value);
     ///Sets state's value to quaternion value given as Euler angles
     void set_euler(const Eigen::Matrix<double, 3, 1> &value);
-    ///Sets state's value to mode value
-    void set_mode(Mode value);
+    ///Sets state's value to robot mode value
+    void set_robot_mode(RobotMode value);
+    ///Sets state's value to gripper mode value
+    void set_gripper_mode(GripperMode value);
     ///Sets state's value to error value
     void set_error(Error value);
     
@@ -79,8 +86,10 @@ public:
     Eigen::Matrix<double, 4, 1> get_wxyz() const;
     ///Returns quaternion value given as Euler angles
     Eigen::Matrix<double, 3, 1> get_euler() const;
-    ///Returns mode value
-    Mode get_mode() const;
+    ///Returns robot mode value
+    RobotMode get_robot_mode() const;
+    ///Returns gripper mode value
+    GripperMode get_gripper_mode() const;
     ///Returns error value
     Error get_error() const;
 
