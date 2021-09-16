@@ -1,4 +1,4 @@
-﻿# Welcome to `franka_o80 1.0.0`!
+# Welcome to `franka_o80 1.0.0`!
 Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 ### Contents
@@ -114,5 +114,5 @@ cmake --install .
 
 ### Contributors
  - Kyrylo Sovailo
- - Original [o80](https://github.com/intelligent-soft-robots/o80) is authored by Vincent Berenz
+ - Original [o80](https://github.com/intelligent-soft-robots/o80) is authored by [Vincent Berenz](http://vincentberenz.is.tuebingen.mpg.de), Max Planck Institute for Intelligent Systems, Empirical Inference Department
  - Models from `model` directory were generated with [MoveIt Setup Assistant](http://docs.ros.org/en/kinetic/api/moveit_tutorials/html/doc/setup_assistant/setup_assistant_tutorial.html) from `ROS` package `franka_description`
