@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14.0)
 cmake_policy(SET CMP0048 NEW)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-project(franka_o80 VERSION 1.1.0)
+project(franka_o80 VERSION 1.1.1)
 
 ################
 # Dependencies #
@@ -120,6 +120,7 @@ install(DIRECTORY include/franka_o80 TYPE INCLUDE)
 install(TARGETS franka_o80 EXPORT franka_o80-config)
 install(EXPORT franka_o80-config DESTINATION lib/cmake/franka_o80)
 install(FILES "${PROJECT_SOURCE_DIR}/franka_o80-config-version.cmake" DESTINATION lib/cmake/franka_o80)
+install(FILES "${PROJECT_SOURCE_DIR}/model/franka.urdf" DESTINATION share/franka_o80)
 
 # franka_o80_backend
 add_executable(franka_o80_backend example/backend.cpp)

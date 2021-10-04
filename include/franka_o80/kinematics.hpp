@@ -5,6 +5,10 @@
 #include "limits.hpp"
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/multibody/data.hpp>
+#ifndef _GNU_SOURCE
+    #define _GNU_SOURCE
+#endif
+#include <link.h>
 
 namespace franka_o80
 {
@@ -34,6 +38,7 @@ private:
     static pinocchio::Model model_;
     static pinocchio::Data data_;
     static void initialize_();
+    static int library_search_callback_(struct dl_phdr_info *info, size_t size, void *data);
 };
 
 }  // namespace franka_o80

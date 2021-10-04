@@ -3,6 +3,9 @@
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/joint-configuration.hpp>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 bool franka_o80::Kinematics::initialized_ = false;
 size_t franka_o80::Kinematics::robot_joint_ids_[7];
@@ -14,7 +17,17 @@ void franka_o80::Kinematics::initialize_()
     //franka.urdf can be found:
     //1) $(directory of libfranka_o80.so)/../model/franka.urdf
     //2) $(directory of libfranka_o80.so)/../share/franka_o80/franka.urdf
-    pinocchio::urdf::buildModel("../model/franka.urdf", model_);
+
+    //Searching file
+    std::string library_directory;
+    dl_iterate_phdr(library_search_callback_, &library_directory);
+    if (library_directory == "") throw std::runtime_error("franka_o80::Kinematics::initialize_: Could not find library path");
+    struct stat model_stat;
+    if (stat((library_directory + "../model/franka.urdf").c_str(), &model_stat) == 0) pinocchio::urdf::buildModel(library_directory + "../model/franka.urdf", model_);
+    else if (stat((library_directory + "../share/franka_o80/franka.urdf").c_str(), &model_stat) == 0) pinocchio::urdf::buildModel(library_directory + "../share/franka_o80/franka.urdf", model_);
+    else throw std::runtime_error("franka_o80::Kinematics::initialize_: Could not find model file");
+
+    //Loading some data from file
     data_ = pinocchio::Data(model_);
     for (size_t i = 0; i < 7; i++)
     {
@@ -23,6 +36,17 @@ void franka_o80::Kinematics::initialize_()
         robot_joint_ids_[i] = model_.getJointId(name);
     }
     initialized_ = true;
+}
+
+int franka_o80::Kinematics::library_search_callback_(struct dl_phdr_info *info, size_t size, void *data)
+{
+    if (strstr(info->dlpi_name, "libfranka_o80.so") != nullptr)
+    {
+        std::string *library_directory = (std::string*)data;
+        library_directory->assign(info->dlpi_name);
+        library_directory->erase(library_directory->find("libfranka_o80.so"), strlen("libfranka_o80.so"));
+    }
+    return 0;
 }
 
 void franka_o80::joint_to_cartesian(States &states)
