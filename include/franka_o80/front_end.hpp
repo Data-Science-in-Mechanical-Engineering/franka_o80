@@ -11,7 +11,7 @@ namespace franka_o80
 typedef o80::FrontEnd<franka_o80::queue_size, franka_o80::actuator_number, franka_o80::State, o80::VoidExtendedState> FrontEnd;
 } // namespace franka_o80
 
-/** @mainpage Welcome to `franka_o80 1.0.0`!
+/** @mainpage Welcome to `franka_o80 1.1.0`!
 Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 @tableofcontents

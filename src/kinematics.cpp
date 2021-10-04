@@ -1,4 +1,8 @@
 #include "../include/franka_o80/kinematics.hpp"
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/jacobian.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
 
 bool franka_o80::Kinematics::initialized_ = false;
 size_t franka_o80::Kinematics::robot_joint_ids_[7];
@@ -7,6 +11,9 @@ pinocchio::Data franka_o80::Kinematics::data_;
 
 void franka_o80::Kinematics::initialize_()
 {
+    //franka.urdf can be found:
+    //1) $(directory of libfranka_o80.so)/../model/franka.urdf
+    //2) $(directory of libfranka_o80.so)/../share/franka_o80/franka.urdf
     pinocchio::urdf::buildModel("../model/franka.urdf", model_);
     data_ = pinocchio::Data(model_);
     for (size_t i = 0; i < 7; i++)

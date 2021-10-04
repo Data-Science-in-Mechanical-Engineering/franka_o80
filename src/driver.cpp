@@ -1,4 +1,7 @@
 #include "../include/franka_o80/driver.hpp"
+#include <franka/exception.h>
+#include <Eigen/Geometry>
+#include <iostream>
 
 void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_state)
 {

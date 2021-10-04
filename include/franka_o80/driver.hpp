@@ -5,21 +5,16 @@
 #include "error.hpp"
 #include "driver_input.hpp"
 #include "driver_output.hpp"
-#ifndef FRANKA_O80_TEST
-    #include <franka/robot.h>
-    #include <franka/model.h>
-    #include <franka/gripper.h>
-    #include <franka/exception.h>
-#else
-    #include "franka_test.hpp"
-#endif
+#include <franka/robot.h>
+#include <franka/model.h>
+#include <franka/gripper.h>
 #include <o80/driver.hpp>
+#include <Eigen/Dense>
 #include <string>
 #include <memory>
 #include <thread>
 #include <mutex>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+
 
 namespace franka_o80
 {

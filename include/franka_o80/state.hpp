@@ -3,13 +3,11 @@
 #include "robot_mode.hpp"
 #include "gripper_mode.hpp"
 #include "error.hpp"
-#include <stdexcept>
-#include <string>
-#include <limits>
-#include <array>
 #include <o80/command_types.hpp>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <string>
+#include <array>
 
 namespace franka_o80
 {

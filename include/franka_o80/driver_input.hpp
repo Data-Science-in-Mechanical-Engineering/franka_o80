@@ -1,7 +1,6 @@
 #pragma once
 
 #include "driver_input_output.hpp"
-#include <iostream>
 #include <string>
 
 namespace franka_o80

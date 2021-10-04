@@ -1,4 +1,5 @@
 #include "../include/franka_o80/state.hpp"
+#include <stdexcept>
 
 franka_o80::State::State()
 {

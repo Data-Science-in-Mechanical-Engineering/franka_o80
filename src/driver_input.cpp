@@ -1,4 +1,5 @@
 #include "../include/franka_o80/driver_input.hpp"
+#include <iostream>
 
 franka_o80::DriverInput::DriverInput()
 {}

@@ -1,4 +1,4 @@
-# Welcome to `franka_o80 1.0.0`!
+# Welcome to `franka_o80 1.1.0`!
 Here you will find a library for control of [Franka Emika Panda](https://www.franka.de/) robot. The library is a specialization of [o80](https://github.com/intelligent-soft-robots/o80) templates and is based on [libfranka](https://github.com/frankaemika/libfranka). It includes both `C++` headers and `Python` bindings.
 
 ### Contents
@@ -77,7 +77,7 @@ Some important files and directories:
 
 ### Building
 `franka_o80` can be built with [CMake](https://cmake.org) using following commands:
-```
+```1.0
 mkdir build
 cd build
 cmake ..

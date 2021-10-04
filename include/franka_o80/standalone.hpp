@@ -3,9 +3,8 @@
 #include "driver.hpp"
 #include "state.hpp"
 #include "queue.hpp"
-#include "states.hpp"
-#include <o80/memory_clearing.hpp>
-#include <o80/state.hpp>
+#include "state.hpp"
+#include <o80/states.hpp>
 #include <o80/standalone.hpp>
 
 namespace franka_o80

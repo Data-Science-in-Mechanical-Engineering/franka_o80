@@ -3,12 +3,8 @@
 #include "states.hpp"
 #include "actuator.hpp"
 #include "limits.hpp"
-#include <array>
-#include <limits>
-#include "pinocchio/parsers/urdf.hpp"
-#include "pinocchio/algorithm/kinematics.hpp"
-#include "pinocchio/algorithm/jacobian.hpp"
-#include "pinocchio/algorithm/joint-configuration.hpp"
+#include <pinocchio/multibody/model.hpp>
+#include <pinocchio/multibody/data.hpp>
 
 namespace franka_o80
 {
