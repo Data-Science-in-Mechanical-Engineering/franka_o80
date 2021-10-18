@@ -358,7 +358,7 @@ class Control:
             
             if self.commands_count("xyzq"):
                 try:                
-                    franka_o80.cartesian_to_joint(self.newtarget_)
+                    franka_o80.cartesian_to_joint(self.newtarget_, math.atan2(self.newtarget_.get(franka_o80.cartesian_position(1)).get_real(), self.newtarget_.get(franka_o80.cartesian_position(0)).get_real()))
                 except:                
                     print("Invalid cartesian position")
                 else:

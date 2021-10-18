@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14.0)
 cmake_policy(SET CMP0048 NEW)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-project(franka_o80 VERSION 1.1.1)
+project(Franka_o80 VERSION 1.2.0)
 
 ################
 # Dependencies #
@@ -16,17 +16,9 @@ project(franka_o80 VERSION 1.1.1)
 set(CMAKE_CXX_STANDARD 17)
 
 #libfranka
-if (DEFINED franka_DIR)
-	set(Franka_DIR ${franka_DIR})
-	find_package(Franka REQUIRED)
-	set(franka_INCLUDE_DIRS ${Franka_INCLUDE_DIRS})
-	set(franka_LIBRARY_DIRS ${franka_DIR})
-	set(franka_LIBRARIES franka)
-else()
+find_package(Franka REQUIRED)
+if (NOT Franka_FOUND)
 	find_package(catkin REQUIRED COMPONENTS franka_control)
-	set(franka_INCLUDE_DIRS ${franka_control_INCLUDE_DIRS})
-	set(franka_LIBRARY_DIRS ${franka_control_LIBRARY_DIRS})
-	set(franka_LIBRARIES ${franka_control_LIBRARIES})
 endif()
 
 #o80
@@ -48,14 +40,8 @@ else()
 endif()
 
 #pinocchio
-if (DEFINED pinocchio_DIR)
-	find_package(pinocchio REQUIRED)
-	set(pinocchio_LIBRARY_DIRS ${pinocchio_INCLUDE_DIRS}/../lib)
-	set(pinocchio_LIBRARIES pinocchio)
-else()
-	if(EXISTS $ENV{ROS_PACKAGE_PATH}/cmake/pinocchio)
-		set(pinocchio_DIR $ENV{ROS_PACKAGE_PATH}/cmake/pinocchio) #Fix for Ubuntu
-	endif()
+find_package(pinocchio)
+if (NOT pinocchio_FOUND)
 	find_package(catkin REQUIRED COMPONENTS pinocchio)
 endif()
 
@@ -84,8 +70,8 @@ endif()
 # Library #
 ###########
 
-# franka_o80
-add_library(franka_o80 SHARED
+# Franka_o80
+add_library(Franka_o80 SHARED
 src/driver.cpp
 src/driver_input_output.cpp
 src/driver_input.cpp
@@ -94,66 +80,67 @@ src/kinematics.cpp
 src/standalone.cpp
 src/states.cpp
 src/state.cpp)
-if (NOT franka_o80_omit_include_directories MATCHES yes)
-	target_include_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+if (NOT Franka_o80_omit_include_directories MATCHES yes)
+	target_include_directories(Franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 endif()
-target_compile_definitions(franka_o80 PUBLIC RT_PREEMPT)
-target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
-target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_MINOR=${PROJECT_VERSION_MINOR})
-target_compile_definitions(franka_o80 PUBLIC FRANKA_O80_VERSION_PATCH=${PROJECT_VERSION_PATCH})
-target_include_directories(franka_o80 PUBLIC ${franka_INCLUDE_DIRS})
-target_include_directories(franka_o80 PUBLIC ${o80_INCLUDE_DIRS})
-target_include_directories(franka_o80 PUBLIC ${pinocchio_INCLUDE_DIRS})
-target_include_directories(franka_o80 PUBLIC ${EIGEN3_INCLUDE_DIRS})
-target_link_directories(franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}> $<INSTALL_INTERFACE:lib>)
-target_link_directories(franka_o80 PUBLIC ${franka_LIBRARY_DIRS})
-target_link_directories(franka_o80 PUBLIC ${o80_LIBRARY_DIRS})
-target_link_directories(franka_o80 PUBLIC ${pinocchio_LIBRARY_DIRS})
-target_link_libraries(franka_o80 PUBLIC ${franka_LIBRARIES})
-target_link_libraries(franka_o80 PUBLIC ${o80_LIBRARIES})
-target_link_libraries(franka_o80 PUBLIC ${pinocchio_LIBRARIES})
-target_link_libraries(franka_o80 PUBLIC boost_system boost_thread rt pthread)
+target_compile_definitions(Franka_o80 PUBLIC RT_PREEMPT)
+target_compile_definitions(Franka_o80 PUBLIC FRANKA_O80_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
+target_compile_definitions(Franka_o80 PUBLIC FRANKA_O80_VERSION_MINOR=${PROJECT_VERSION_MINOR})
+target_compile_definitions(Franka_o80 PUBLIC FRANKA_O80_VERSION_PATCH=${PROJECT_VERSION_PATCH})
+target_include_directories(Franka_o80 PUBLIC ${o80_INCLUDE_DIRS})
+target_include_directories(Franka_o80 PUBLIC ${pinocchio_INCLUDE_DIRS})
+target_include_directories(Franka_o80 PUBLIC ${EIGEN3_INCLUDE_DIRS})
+target_link_directories(Franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}> $<INSTALL_INTERFACE:lib>)
+target_link_directories(Franka_o80 PUBLIC ${o80_LIBRARY_DIRS})
+target_link_libraries(Franka_o80 PUBLIC Franka::Franka)
+target_link_libraries(Franka_o80 PUBLIC ${o80_LIBRARIES})
+target_link_libraries(Franka_o80 PUBLIC ${pinocchio_LIBRARIES})
+target_link_libraries(Franka_o80 PUBLIC boost_system boost_thread rt pthread)
+set_target_properties(Franka_o80 PROPERTIES OUTPUT_NAME "franka_o80")
 include(CMakePackageConfigHelpers)
-write_basic_package_version_file("${PROJECT_SOURCE_DIR}/franka_o80-config-version.cmake" VERSION ${PROJECT_VERSION} COMPATIBILITY AnyNewerVersion)
-export(TARGETS franka_o80 FILE "${PROJECT_SOURCE_DIR}/franka_o80-config.cmake")
+write_basic_package_version_file("${PROJECT_SOURCE_DIR}/Franka_o80-config-version.cmake" VERSION ${PROJECT_VERSION} COMPATIBILITY AnyNewerVersion)
+export(TARGETS Franka_o80 FILE "${PROJECT_SOURCE_DIR}/Franka_o80-config.cmake")
 install(DIRECTORY include/franka_o80 TYPE INCLUDE)
-install(TARGETS franka_o80 EXPORT franka_o80-config)
-install(EXPORT franka_o80-config DESTINATION lib/cmake/franka_o80)
-install(FILES "${PROJECT_SOURCE_DIR}/franka_o80-config-version.cmake" DESTINATION lib/cmake/franka_o80)
+install(TARGETS Franka_o80 EXPORT Franka_o80-config)
+install(EXPORT Franka_o80-config DESTINATION lib/cmake/Franka_o80)
+install(FILES "${PROJECT_SOURCE_DIR}/Franka_o80-config-version.cmake" DESTINATION lib/cmake/Franka_o80)
 install(FILES "${PROJECT_SOURCE_DIR}/model/franka.urdf" DESTINATION share/franka_o80)
 
-# franka_o80_backend
-add_executable(franka_o80_backend example/backend.cpp)
-target_link_libraries(franka_o80_backend PRIVATE franka_o80)
-install(TARGETS franka_o80_backend)
+# Franka_o80_backend
+add_executable(Franka_o80_backend example/backend.cpp)
+target_link_libraries(Franka_o80_backend PRIVATE Franka_o80)
+set_target_properties(Franka_o80_backend PROPERTIES OUTPUT_NAME "franka_o80_backend")
+install(TARGETS Franka_o80_backend)
 
-# franka_o80_selftest
+# Franka_o80_selftest
 if (GTest_FOUND)
-	add_executable(franka_o80_selftest example/selftest.cpp)
-	target_include_directories(franka_o80_selftest PRIVATE ${GTEST_INCLUDE_DIRS})
-	target_link_directories(franka_o80_selftest PRIVATE ${GTEST_LIBRARY_DIRS})
-	target_link_libraries(franka_o80_selftest PRIVATE franka_o80)
-	target_link_libraries(franka_o80_selftest PRIVATE ${GTEST_LIBRARIES})
-	install(TARGETS franka_o80_selftest)
+	add_executable(Franka_o80_selftest example/selftest.cpp)
+	target_include_directories(Franka_o80_selftest PRIVATE ${GTEST_INCLUDE_DIRS})
+	target_link_directories(Franka_o80_selftest PRIVATE ${GTEST_LIBRARY_DIRS})
+	target_link_libraries(Franka_o80_selftest PRIVATE Franka_o80)
+	target_link_libraries(Franka_o80_selftest PRIVATE ${GTEST_LIBRARIES})
+	set_target_properties(Franka_o80_selftest PROPERTIES OUTPUT_NAME "franka_o80_selftest")
+	install(TARGETS Franka_o80_selftest)
 endif()
 
-# franka_o80_python
+# Franka_o80_python
 if (pybind11_FOUND)
-	add_library(franka_o80_python SHARED src/wrappers.cpp)
-	if (franka_o80_omit_include_directories MATCHES yes)
-		target_compile_definitions(franka_o80_python PRIVATE FRANKA_O80_WRAPPERS_INSTALLED)
+	add_library(Franka_o80_python SHARED src/wrappers.cpp)
+	if ("${Franka_o80_omit_include_directories}" MATCHES "yes")
+		target_compile_definitions(Franka_o80_python PRIVATE FRANKA_O80_WRAPPERS_INSTALLED)
 	endif()
-	target_include_directories(franka_o80_python PRIVATE ${pybind11_INCLUDE_DIRS})
-	target_link_libraries(franka_o80_python PRIVATE franka_o80)
-	set_target_properties(franka_o80_python PROPERTIES PREFIX "")
-	set_target_properties(franka_o80_python PROPERTIES OUTPUT_NAME "franka_o80.cpython-${python_VERSION_MAJOR}${python_VERSION_MINOR}-${CMAKE_LIBRARY_ARCHITECTURE}")
-	install(TARGETS franka_o80_python DESTINATION "lib/python${python_VERSION_MAJOR}.${python_VERSION_MINOR}/dist-packages")
+	target_include_directories(Franka_o80_python PRIVATE ${pybind11_INCLUDE_DIRS})
+	target_link_libraries(Franka_o80_python PRIVATE Franka_o80)
+	set_target_properties(Franka_o80_python PROPERTIES PREFIX "")
+	set_target_properties(Franka_o80_python PROPERTIES OUTPUT_NAME "franka_o80.cpython-${python_VERSION_MAJOR}${python_VERSION_MINOR}-${CMAKE_LIBRARY_ARCHITECTURE}")
+	install(TARGETS Franka_o80_python DESTINATION "lib/python${python_VERSION_MAJOR}.${python_VERSION_MINOR}/dist-packages")
 endif()
 
-# franka_o80_control
-add_executable(franka_o80_control example/control.cpp)
-target_link_libraries(franka_o80_control PUBLIC franka_o80)
-install(TARGETS franka_o80_control)
+# Franka_o80_control
+add_executable(Franka_o80_control example/control.cpp)
+target_link_libraries(Franka_o80_control PUBLIC Franka_o80)
+set_target_properties(Franka_o80_control PROPERTIES OUTPUT_NAME "franka_o80_control")
+install(TARGETS Franka_o80_control)
 
 # franka_o80_control.py
 configure_file(example/control.py franka_o80_control.py)

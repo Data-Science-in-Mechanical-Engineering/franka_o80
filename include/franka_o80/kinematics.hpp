@@ -22,15 +22,27 @@ void cartesian_to_joint(States &states);
 
 ///Transforms cartesian state (`cartesian_position` and `cartesian_orientation`) to joint state (`joint_position`)
 ///@param states States to transform
+///@param joint0 Position of first joint to resolve ambiguity
+void cartesian_to_joint(States &states, double joint0);
+
+///Transforms cartesian state (`cartesian_position` and `cartesian_orientation`) to joint state (`joint_position`)
+///@param states States to transform
 ///@param hint States which joint states will be taken as initial guess
 void cartesian_to_joint(States &states, const States &hint);
+
+///Transforms cartesian state (`cartesian_position` and `cartesian_orientation`) to joint state (`joint_position`)
+///@param states States to transform
+///@param joint0 Position of first joint to resolve ambiguity
+///@param hint States which joint states will be taken as initial guess
+void cartesian_to_joint(States &states, double joint0, const States &hint);
 
 ///Forward and inverse kinematics information
 class Kinematics
 {
     friend void joint_to_cartesian(States &states);
-    friend void cartesian_to_joint(States &states);
+    friend void cartesian_to_joint(States &states, double joint0);
     friend void cartesian_to_joint(States &states, const States &hint);
+    friend void cartesian_to_joint(States &states, double joint0, const States &hint);
 
 private:
     static bool initialized_;

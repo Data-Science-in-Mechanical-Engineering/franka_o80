@@ -427,7 +427,7 @@ void Control::loop()
             bool valid = true;
             try
             {
-                franka_o80::cartesian_to_joint(newtarget_);
+                franka_o80::cartesian_to_joint(newtarget_, atan2(newtarget_.get(franka_o80::cartesian_position[1]).get_real(), newtarget_.get(franka_o80::cartesian_position[0]).get_real()));
             }
             catch (...)
             {

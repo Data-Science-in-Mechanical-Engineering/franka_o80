@@ -21,7 +21,7 @@ franka_o80::States franka_o80::default_states()
     states.values[franka_o80::joint_position[3]] = -3 * M_PI / 4;
     states.values[franka_o80::joint_position[4]] = 0.0;
     states.values[franka_o80::joint_position[5]] = M_PI / 2;
-    states.values[franka_o80::joint_position[6]] = M_PI / 4;
+    states.values[franka_o80::joint_position[6]] = 0.0;
     states.values[franka_o80::cartesian_position[0]] = 0.30702;
     states.values[franka_o80::cartesian_position[1]] = 0.0;
     states.values[franka_o80::cartesian_position[2]] = 0.49727;

@@ -14,6 +14,7 @@ void franka_o80::Driver::robot_write_output_(const franka::RobotState &robot_sta
         output_.set(joint_stiffness[i], input_.get(joint_stiffness[i]));
         output_.set(joint_damping[i], input_.get(joint_damping[i]));
     }
+    output_.set(joint_position[6], robot_state.q[6] - M_PI / 4);
 
     //Cartesian
     Eigen::Affine3d transform(Eigen::Matrix<double, 4, 4>::Map(robot_state.O_T_EE.data()));
@@ -106,6 +107,7 @@ void franka_o80::Driver::robot_torque_control_function_(const franka::RobotState
             input_stiffness(i) = input_.get(joint_stiffness[i]).get_real();
             input_damping(i) = input_.get(joint_damping[i]).get_real();
         }
+        input_target_positions(6) = input_.get(joint_position[6]).get_real() + M_PI / 4;
 
         //Calculating torque
         Eigen::Matrix<double, 7, 1> joint_positions = Eigen::Matrix<double, 7, 1>::Map(robot_state.q.data());
@@ -190,6 +192,7 @@ void franka_o80::Driver::robot_position_control_function_(const franka::RobotSta
     else
     {
         for (size_t i = 0; i < 7; i++) positions->q[i] = input_.get(joint_position[i]).get_real();
+        positions->q[6] = input_.get(joint_position[6]).get_real() + M_PI / 4;
     }
 
    //Writing output

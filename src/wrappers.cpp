@@ -66,9 +66,11 @@ PYBIND11_MODULE(franka_o80, m)
     .value("grasp",     franka_o80::GripperMode::grasp,         "Backend listens gripper_width, gripper_velocity and gripper_force, precise gripping force control is possible in this mode");
 
     //kinematics.hpp
-    m.def("joint_to_cartesian", &franka_o80::joint_to_cartesian,                                                                            "Transforms joint positions to cartesian position and orientation",                         pybind11::arg("states"));
-    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&>(&franka_o80::cartesian_to_joint),                              "Transforms cartesian position and orientation to joint position",                          pybind11::arg("states"));
-    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, const franka_o80::States&>(&franka_o80::cartesian_to_joint),   "Transforms cartesian position and orientation to joint position wit hcustom initial guess",pybind11::arg("states"), pybind11::arg("hint"));
+    m.def("joint_to_cartesian", &franka_o80::joint_to_cartesian,                                                                                    "Transforms joint positions to cartesian position and orientation",                                                     pybind11::arg("states"));
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&>(&franka_o80::cartesian_to_joint),                                      "Transforms cartesian position and orientation to joint position",                                                      pybind11::arg("states"));
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, double>(&franka_o80::cartesian_to_joint),                              "Transforms cartesian position and orientation to joint position with given first joint position",                      pybind11::arg("states"), pybind11::arg("joint0"));
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, const franka_o80::States&>(&franka_o80::cartesian_to_joint),           "Transforms cartesian position and orientation to joint position with given initial guess",                             pybind11::arg("states"), pybind11::arg("hint"));
+    m.def("cartesian_to_joint", pybind11::overload_cast<franka_o80::States&, double, const franka_o80::States&>(&franka_o80::cartesian_to_joint),   "Transforms cartesian position and orientation to joint position with given first joint position and initial guess",    pybind11::arg("states"), pybind11::arg("joint0"), pybind11::arg("hint"));
 
     //limits.hpp
     m.def("joint_position_min",     [](int i) -> double { if (i < 0 || i > 6) throw std::range_error("franka_o80 invalid joint index"); return franka_o80::joint_position_min[i]; },     "Robot minimal positions for each joint");
@@ -96,7 +98,6 @@ PYBIND11_MODULE(franka_o80, m)
     .value("cartesian_velocity",            franka_o80::RobotMode::cartesian_velocity,              "Backend listens cartesian velocities")
     .value("intelligent_position",          franka_o80::RobotMode::intelligent_position,            "Backend listens joint positions, but calculates torques itself. In practice, the robot moves smoothly im this mode")
     .value("intelligent_cartesian_position",franka_o80::RobotMode::intelligent_cartesian_position,  "Backend listens cartesian positions, but calculates torques itself. In practice, the robot moves smoothly im this mode");
-
 
     //standalone.hpp
     m.def("start_standalone",       &franka_o80::start_standalone,      "Starts standalone",                    pybind11::arg("segment_id"), pybind11::arg("ip"));

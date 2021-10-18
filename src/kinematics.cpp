@@ -57,6 +57,7 @@ void franka_o80::joint_to_cartesian(States &states)
     Eigen::VectorXd joint_positions(Kinematics::model_.nq);
     joint_positions.setZero();
     for (size_t i = 0; i < 7; i++) joint_positions(Kinematics::robot_joint_ids_[i] - 1) = states.get(joint_position[i]).get_real(); //-1 because of universe joint does not go here
+    joint_positions(Kinematics::robot_joint_ids_[6] - 1) = states.get(joint_position[6]).get_real() + M_PI / 4;
 
     //Performing forward kinematics
     pinocchio::forwardKinematics(Kinematics::model_, Kinematics::data_, joint_positions);
@@ -75,17 +76,30 @@ void franka_o80::joint_to_cartesian(States &states)
 
 void franka_o80::cartesian_to_joint(States &states)
 {
-    return cartesian_to_joint(states, default_states());
+    return cartesian_to_joint(states, std::numeric_limits<double>::quiet_NaN(), default_states());
+}
+
+void franka_o80::cartesian_to_joint(States &states, double joint0)
+{
+    return cartesian_to_joint(states, joint0, default_states());
 }
 
 void franka_o80::cartesian_to_joint(States &states, const States &hint)
 {
+    return cartesian_to_joint(states, std::numeric_limits<double>::quiet_NaN(), hint);
+}
+
+void franka_o80::cartesian_to_joint(States &states, double joint0, const States &hint)
+{
     if (!Kinematics::initialized_) Kinematics::initialize_();
 
-    //Copying hint
+    //Copying hints
+    if (joint0 > joint_position_max[0]) joint0 = joint_position_max[0];
+    if (joint0 < joint_position_min[0]) joint0 = joint_position_min[0];
     Eigen::VectorXd result(Kinematics::model_.nq);
     result.setZero();
     for (size_t i = 0; i < 7; i++) result(Kinematics::robot_joint_ids_[i] - 1) = hint.get(joint_position[i]).get_real();
+    result(Kinematics::robot_joint_ids_[6] - 1) = hint.get(joint_position[6]).get_real() + M_PI / 4;
 
     //Transforming to Eigen
     Eigen::Vector3d translation;
@@ -121,10 +135,11 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
         {
             for (size_t j = 0; j < 7; j++)
             {
-                if (result(j) > franka_o80::joint_position_max[j] || result(j) < franka_o80::joint_position_min[j])
+                if (result(j) > joint_position_max[j] || result(j) < joint_position_min[j])
                     throw std::runtime_error("franka_o80::cartesian_to_joint: Limit check failed");
                 states.set(joint_position[j], result(j));
             }
+            states.set(joint_position[6], result(6) - M_PI / 4);
             return;
         }
         pinocchio::computeJointJacobian(Kinematics::model_, Kinematics::data_, result, Kinematics::robot_joint_ids_[6], jacobian);
@@ -132,6 +147,7 @@ void franka_o80::cartesian_to_joint(States &states, const States &hint)
         jacobian2.diagonal().array() += damp;
         gradient.noalias() = -jacobian.transpose() * jacobian2.ldlt().solve(error);
         result = pinocchio::integrate(Kinematics::model_, result, gradient * step);
+        if (joint0 == joint0) result(0) = joint0;
     }
     throw std::runtime_error("franka_o80::cartesian_to_joint: Number of iterations exeeded");
 }
