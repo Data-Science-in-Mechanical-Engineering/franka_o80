@@ -80,7 +80,7 @@ src/kinematics.cpp
 src/standalone.cpp
 src/states.cpp
 src/state.cpp)
-if (NOT Franka_o80_omit_include_directories MATCHES yes)
+if (NOT "${Franka_o80_omit_include_directories}" MATCHES "yes")
 	target_include_directories(Franka_o80 PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 endif()
 target_compile_definitions(Franka_o80 PUBLIC RT_PREEMPT)
