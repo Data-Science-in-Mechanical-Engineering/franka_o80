@@ -16,7 +16,7 @@ project(Franka_o80 VERSION 1.2.0)
 set(CMAKE_CXX_STANDARD 17)
 
 #libfranka
-find_package(Franka REQUIRED)
+find_package(Franka)
 if (NOT Franka_FOUND)
 	find_package(catkin REQUIRED COMPONENTS franka_control)
 endif()
